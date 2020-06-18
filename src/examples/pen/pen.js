@@ -21,13 +21,12 @@ export default class Pen extends Object3D {
   constructor(scene, networking, params) {
     super(params);
     this.networking = networking;
-    (this.scene = scene), (this.isDrawing = false);
+    this.scene = scene;
+    this.isDrawing = false;
     this.undoBreak = false;
     this.activeController = null;
     this.activeInputSource = null;
     this.previousPosition = new Vector3();
-    this.paintContainer = [];
-    this.objCounter = 0;
 
     State.eventHandler.addEventListener(
       "selectstart",
@@ -51,6 +50,28 @@ export default class Pen extends Object3D {
     loader.load(imgPath, img => {
       this.particleTexture = img;
     });
+
+    // networking
+    this.networking.remoteSync.addEventListener(
+      "add",
+      (destId, objectId, info) => {
+        switch (info.type) {
+          case "sphere":
+            this.AddLocalPoint(info.posRotScale);
+          default:
+            return;
+        }
+      }
+    );
+
+    this.networking.remoteSync.addEventListener(
+      "remove",
+      (remotePeerId, objectId, object) => {
+        if (State.debugMode) console.log("removing");
+        scene.remove(object);
+        if (object.parent !== null) object.parent.remove(object);
+      }
+    );
   }
 
   StartDrawing(e) {
@@ -69,24 +90,24 @@ export default class Pen extends Object3D {
     this.activeController = null;
   }
 
-  AddSphere(position, orientation, pressure) {
-    var point = new Mesh(this.sphereGeometry, this.material);
-    var sca = pressure * 0.05 * Math.random();
-    point.scale.set(sca, sca, sca);
-    point.position.copy(position);
-    point.rotation.copy(orientation);
-    const curPosRotSca = {
+  AddSphere(position, rotation, pressure) {
+    const sphere = new Mesh(this.sphereGeometry, this.material);
+    const scale = pressure * 0.05 * Math.random();
+    sphere.scale.set(scale, scale, scale);
+    sphere.position.copy(position);
+    sphere.rotation.copy(rotation);
+    const curPosRotScale = {
       position: position,
-      rotation: orientation,
-      scale: sca,
+      rotation: rotation,
+      scale: scale,
     };
-    this.scene.add(point);
+    this.scene.add(sphere);
     this.networking.remoteSync.addLocalObject(
-      point,
-      { type: "sphere", posRotSca: curPosRotSca },
+      sphere,
+      { type: "sphere", posRotScale: curPosRotScale },
       false
     );
-    return point;
+    return sphere;
   }
 
   AddLine(position, orientation, pressure) {
@@ -138,11 +159,6 @@ export default class Pen extends Object3D {
           this.activeControllerGrip.rotation,
           this.currentPressure
         );
-        // this.AddPoint(
-        //   this.activeControllerGrip.position,
-        //   this.activeControllerGrip.rotation,
-        //   this.currentPressure
-        // );
       } else {
         this.activeInputSource.gamepad.axes.forEach(axis => {
           if (this.undoBreak) return;
@@ -152,5 +168,13 @@ export default class Pen extends Object3D {
         });
       }
     }
+  }
+
+  AddLocalPoint(transform) {
+    var sphere = new Mesh(this.sphereGeometry, this.material);
+    sphere.scale.set(transform.scale, transform.scale, transform.scale);
+    sphere.position.copy(transform.position);
+    sphere.rotation.copy(transform.rotation);
+    this.scene.add(sphere);
   }
 }
