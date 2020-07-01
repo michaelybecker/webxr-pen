@@ -1,10 +1,10 @@
 // scene to run:
-import { scene } from "../examples/pen/scene";
+import { scene } from "../examples/defaultscene";
 
 import State from "./state";
 import { PerspectiveCamera, AudioListener } from "three";
-import EngineEditorCamera from "./util/Cameracontrols/EngineEditorCamera";
-import SessionHandler from "./util/webxr/SessionHandler";
+import EngineEditorCamera from "./util/Cameracontrols/engineeditorcamera";
+import SessionHandler from "./util/webxr/sessionhandler";
 import Renderer from "./renderer";
 import Physics from "./physics/physics";
 // import PhysicsSolver from './physics.worker.js';

@@ -5,7 +5,12 @@
   "main": "index.js",
   "scripts": {
     "start": "webpack-dev-server --config webpack.dev.js",
+<<<<<<< HEAD
     "build": "webpack --progress --profile --colors --config webpack.prod.js"
+=======
+    "build": "webpack --progress --profile --colors --config webpack.prod.js",
+    "build-xrpk": "npm run build && node ./src/engine/util/xrpk/xrpk-build.js"
+>>>>>>> 2abf275b694418b32c8c73fa745d1ad598610151
   },
   "keywords": [],
   "author": "",
@@ -13,8 +18,14 @@
   "dependencies": {
     "cannon": "^0.6.2",
     "firebase": "^7.14.5",
+<<<<<<< HEAD
     "speak-tts": "^2.0.8",
     "three": "^0.117.1"
+=======
+    "inquirer": "^7.2.0",
+    "speak-tts": "^2.0.8",
+    "three": "^0.118.1"
+>>>>>>> 2abf275b694418b32c8c73fa745d1ad598610151
   },
   "devDependencies": {
     "@babel/core": "^7.9.6",
@@ -24,6 +35,10 @@
     "compression-webpack-plugin": "^4.0.0",
     "css-loader": "^3.5.3",
     "file-loader": "^6.0.0",
+<<<<<<< HEAD
+=======
+    "gltf-webpack-loader": "^1.0.6",
+>>>>>>> 2abf275b694418b32c8c73fa745d1ad598610151
     "html-loader": "^1.1.0",
     "html-webpack-plugin": "^4.3.0",
     "imagemin-jpegtran": "^6.0.0",
@@ -40,7 +55,12 @@
     "webpack-dev-server": "^3.11.0",
     "webpack-glsl-loader": "^1.0.1",
     "webpack-merge": "^4.2.2",
+<<<<<<< HEAD
     "worker-loader": "^2.0.0"
+=======
+    "worker-loader": "^2.0.0",
+    "xrpk": "0.0.70"
+>>>>>>> 2abf275b694418b32c8c73fa745d1ad598610151
   },
   "prettier": {
     "semi": true,

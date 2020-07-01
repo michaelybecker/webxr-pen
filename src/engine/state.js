@@ -34,11 +34,11 @@ class EventHandler {
 class StateClass {
   constructor() {
     this.globals = {};
-    this.isMaster = true; // until claimed otherwise by a PeerConnection
+    this.isPrimary = true; // until claimed otherwise by a PeerConnection
     this.isXRSession = false;
     this.isPaused = false;
     this.currentSession = null;
-    this.debugMode = false;
+    this.debugMode = true;
     this.eventHandler = new EventHandler();
     this.eventHandler.registerEvent("xrsessionstarted");
     this.eventHandler.registerEvent("xrsessionended");
