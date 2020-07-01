@@ -15,7 +15,10 @@ scene.init = () => {
   const pen = new Pen(scene, networking);
   scene.add(pen);
 };
-
+// scene.Undo = () => {
+//   console.log(scene.children[scene.children.length - 3]);
+//   scene.remove(scene.children[scene.children.length - 3]);
+// };
 scene.init();
 
 export { scene };

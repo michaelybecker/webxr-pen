@@ -12,10 +12,12 @@ import {
   PointsMaterial,
   TextureLoader,
 } from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import State from "../../engine/state";
 import XRInput from "../../engine/xrinput";
 
 const imgPath = require("./assets/disc4.png");
+const penPath = require("./assets/pen.glb");
 
 export default class Pen extends Object3D {
   constructor(scene, networking, params) {
@@ -27,6 +29,7 @@ export default class Pen extends Object3D {
     this.activeController = null;
     this.activeInputSource = null;
     this.previousPosition = new Vector3();
+    this.inkArr = [];
 
     State.eventHandler.addEventListener(
       "selectstart",
@@ -39,17 +42,27 @@ export default class Pen extends Object3D {
 
     //shapes
     this.material = new MeshBasicMaterial({
-      color: 0x00ffff, //this.data.color,
+      color: 0xff0000,
       side: DoubleSide,
       flatShading: true,
     });
     this.sphereGeometry = new SphereBufferGeometry(1, 12, 12);
 
     //texture
-    const loader = new TextureLoader();
-    loader.load(imgPath, img => {
+    const textureloader = new TextureLoader();
+    textureloader.load(imgPath, img => {
       this.particleTexture = img;
     });
+
+    //pen model
+    // var gltfLoader = new GLTFLoader();
+    // const penRef = this;
+    // gltfLoader.load(penPath, function (gltf) {
+    //   penRef.penModel = gltf.scene;
+    //   console.log(penRef.penModel);
+    //   // penRef.penModel.scale.set(0.025, 0.025, 0.025);
+    //   penRef.add(penRef.penModel);
+    // });
 
     // networking
     this.networking.remoteSync.addEventListener(
@@ -57,7 +70,7 @@ export default class Pen extends Object3D {
       (destId, objectId, info) => {
         switch (info.type) {
           case "sphere":
-            this.AddLocalPoint(info.posRotScale);
+            this.AddLocalSphere(info.posRotScale);
           default:
             return;
         }
@@ -92,6 +105,7 @@ export default class Pen extends Object3D {
 
   AddSphere(position, rotation, pressure) {
     const sphere = new Mesh(this.sphereGeometry, this.material);
+    sphere.name = "ink";
     const scale = pressure * 0.05 * Math.random();
     sphere.scale.set(scale, scale, scale);
     sphere.position.copy(position);
@@ -102,6 +116,7 @@ export default class Pen extends Object3D {
       scale: scale,
     };
     this.scene.add(sphere);
+    // this.inkArr.push(sphere);
     this.networking.remoteSync.addLocalObject(
       sphere,
       { type: "sphere", posRotScale: curPosRotScale },
@@ -141,15 +156,33 @@ export default class Pen extends Object3D {
     this.scene.add(point);
   }
   Undo() {
-    this.remove(this.children[this.children.length - 1]);
-    this.undoBreak = true;
+    // console.log("undoing");
+    console.log(this.scene.children[this.scene.children.length - 1]);
+
+    this.networking.remoteSync.removeLocalObject(
+      this.scene.children[this.scene.children.length - 1]
+    );
+    // this.remove(this.children[this.children.length - 1]);
+    // this.scene.Undo();
+    // if (this.inkArr[this.inkArr.length - 1].name != "ink") return;
+
+    // this.inkArr.pop(this.inkArr.length - 1);
+    // const a = this.scene.children[this.scene.children.length - 1];
+    // console.log(a);
+    // if (a.parent != null) a.parent.remove(a);
+    // while (this.scene.children.length > 0) {
+    //   this.scene.remove(this.scene.children[0]);
+    // }
+    if (this.scene.children) this.undoBreak = true;
     setTimeout(() => {
       this.undoBreak = false;
-    }, 10);
+    }, 1000);
   }
 
   Update() {
     if (this.activeControllerGrip) {
+      // this.penModel.position.copy(this.activeControllerGrip.position);
+      // this.penModel.rotation.copy(this.activeControllerGrip.rotation);
       if (this.isDrawing) {
         this.activeInputSource.gamepad.buttons.forEach(btn => {
           if (btn.value != 0) this.currentPressure = btn.value / 3;
@@ -170,11 +203,11 @@ export default class Pen extends Object3D {
     }
   }
 
-  AddLocalPoint(transform) {
+  AddLocalSphere(transform) {
     var sphere = new Mesh(this.sphereGeometry, this.material);
     sphere.scale.set(transform.scale, transform.scale, transform.scale);
     sphere.position.copy(transform.position);
     sphere.rotation.copy(transform.rotation);
-    this.scene.add(sphere);
+    this.add(sphere);
   }
 }
