@@ -1,5 +1,5 @@
 // scene to run:
-import { scene } from "../pen/scene";
+import { scene } from "../pen/scenexrpk";
 
 import State from "./state";
 import { PerspectiveCamera, AudioListener } from "three";

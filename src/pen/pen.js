@@ -61,30 +61,34 @@ export default class Pen extends Object3D {
     gltfLoader.load(penPath, function (gltf) {
       penRef.penModel = gltf.scene;
       console.log(penRef.penModel);
+      penRef.penModel.Update = () => {
+        console.log("bimmey");
+      };
+      // penRef.penModel.scale.set(0.025, 0.025, 0.025);
       penRef.add(penRef.penModel);
     });
 
     // networking
-    // this.networking.remoteSync.addEventListener(
-    //   "add",
-    //   (destId, objectId, info) => {
-    //     switch (info.type) {
-    //       case "sphere":
-    //         this.AddLocalSphere(info.posRotScale);
-    //       default:
-    //         return;
-    //     }
-    //   }
-    // );
+    this.networking.remoteSync.addEventListener(
+      "add",
+      (destId, objectId, info) => {
+        switch (info.type) {
+          case "sphere":
+            this.AddLocalSphere(info.posRotScale);
+          default:
+            return;
+        }
+      }
+    );
 
-    // this.networking.remoteSync.addEventListener(
-    //   "remove",
-    //   (remotePeerId, objectId, object) => {
-    //     if (State.debugMode) console.log("removing");
-    //     scene.remove(object);
-    //     if (object.parent !== null) object.parent.remove(object);
-    //   }
-    // );
+    this.networking.remoteSync.addEventListener(
+      "remove",
+      (remotePeerId, objectId, object) => {
+        if (State.debugMode) console.log("removing");
+        scene.remove(object);
+        if (object.parent !== null) object.parent.remove(object);
+      }
+    );
   }
 
   StartDrawing(e) {
@@ -117,11 +121,11 @@ export default class Pen extends Object3D {
     };
     this.scene.add(sphere);
     // this.inkArr.push(sphere);
-    // this.networking.remoteSync.addLocalObject(
-    //   sphere,
-    //   { type: "sphere", posRotScale: curPosRotScale },
-    //   false
-    // );
+    this.networking.remoteSync.addLocalObject(
+      sphere,
+      { type: "sphere", posRotScale: curPosRotScale },
+      false
+    );
     return sphere;
   }
 
@@ -136,25 +140,25 @@ export default class Pen extends Object3D {
     this.previousPosition = position;
   }
 
-  AddPoint(position, orientation, pressure) {
-    var points = [];
-    var tgeometry = new BufferGeometry();
+  // AddPoint(position, orientation, pressure) {
+  //   var points = [];
+  //   var tgeometry = new BufferGeometry();
 
-    points.push(position.x, position.y, position.z);
+  //   points.push(position.x, position.y, position.z);
 
-    tgeometry.setAttribute("position", new Float32BufferAttribute(points, 3));
+  //   tgeometry.setAttribute("position", new Float32BufferAttribute(points, 3));
 
-    this.pmaterial = new PointsMaterial({
-      color: 0xffffff,
-      alphaTest: 0.5,
-      transparent: true,
-      map: this.particleTexture,
-      alphaMap: this.particleTexture,
-      size: this.currentPressure * 0.65,
-    });
-    var point = new Points(tgeometry, this.pmaterial);
-    this.scene.add(point);
-  }
+  //   this.pmaterial = new PointsMaterial({
+  //     color: 0xffffff,
+  //     alphaTest: 0.5,
+  //     transparent: true,
+  //     map: this.particleTexture,
+  //     alphaMap: this.particleTexture,
+  //     size: this.currentPressure * 0.65,
+  //   });
+  //   var point = new Points(tgeometry, this.pmaterial);
+  //   this.scene.add(point);
+  // }
   Undo() {
     // console.log("undoing");
     console.log(this.scene.children[this.scene.children.length - 1]);
