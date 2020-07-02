@@ -1,14 +1,3 @@
-<<<<<<< HEAD
-# webxr-pen
-
-## A pen multiapp
-
-### Open in Metachromium!
-
-### (Soon to be XRPackaged)
-
-Built in [Sandcastle](https://github.com/plutovr/sandcastle/)
-=======
 <h1 align="center"> Sandcastle </h1>
 <h2 align="center"> A friendly framework for creating spatial-first, multi-user WebXR apps </h2>
 
@@ -61,4 +50,3 @@ This will automatically:
 - See the `examples` folder for usage examples of networking, media streaming, physics, AR-in-VR experiences and more.
 
 #### This project is in pre-alpha and currently undergoes daily work. Is something broken or unclear? Please file an issue!
->>>>>>> 2abf275b694418b32c8c73fa745d1ad598610151

@@ -13,8 +13,8 @@ import {
   TextureLoader,
 } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
-import State from "../../engine/state";
-import XRInput from "../../engine/xrinput";
+import State from "../engine/state";
+import XRInput from "../engine/xrinput";
 
 const imgPath = require("./assets/disc4.png");
 const penPath = require("./assets/pen.glb");
@@ -55,14 +55,18 @@ export default class Pen extends Object3D {
     });
 
     //pen model
-    // var gltfLoader = new GLTFLoader();
-    // const penRef = this;
-    // gltfLoader.load(penPath, function (gltf) {
-    //   penRef.penModel = gltf.scene;
-    //   console.log(penRef.penModel);
-    //   // penRef.penModel.scale.set(0.025, 0.025, 0.025);
-    //   penRef.add(penRef.penModel);
-    // });
+    var gltfLoader = new GLTFLoader();
+    const penRef = this;
+
+    gltfLoader.load(penPath, function (gltf) {
+      penRef.penModel = gltf.scene;
+      console.log(penRef.penModel);
+      penRef.penModel.Update = () => {
+        console.log("bimmey");
+      };
+      // penRef.penModel.scale.set(0.025, 0.025, 0.025);
+      penRef.add(penRef.penModel);
+    });
 
     // networking
     this.networking.remoteSync.addEventListener(
@@ -181,8 +185,8 @@ export default class Pen extends Object3D {
 
   Update() {
     if (this.activeControllerGrip) {
-      // this.penModel.position.copy(this.activeControllerGrip.position);
-      // this.penModel.rotation.copy(this.activeControllerGrip.rotation);
+      this.penModel.position.copy(this.activeControllerGrip.position);
+      this.penModel.rotation.copy(this.activeControllerGrip.rotation);
       if (this.isDrawing) {
         this.activeInputSource.gamepad.buttons.forEach(btn => {
           if (btn.value != 0) this.currentPressure = btn.value / 3;

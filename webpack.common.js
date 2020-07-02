@@ -57,9 +57,6 @@ module.exports = {
         ],
       },
       {
-<<<<<<< HEAD
-        test: /\.(gltf|glb|obj|mtl|fbx|dae|bin)$/,
-=======
         test: /\.(gltf)$/,
         use: [
           {
@@ -69,7 +66,6 @@ module.exports = {
       },
       {
         test: /\.(glb|obj|mtl|fbx|dae|bin)$/,
->>>>>>> 2abf275b694418b32c8c73fa745d1ad598610151
         use: [
           {
             loader: "file-loader",

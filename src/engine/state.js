@@ -38,7 +38,7 @@ class StateClass {
     this.isXRSession = false;
     this.isPaused = false;
     this.currentSession = null;
-    this.debugMode = true;
+    this.debugMode = false;
     this.eventHandler = new EventHandler();
     this.eventHandler.registerEvent("xrsessionstarted");
     this.eventHandler.registerEvent("xrsessionended");

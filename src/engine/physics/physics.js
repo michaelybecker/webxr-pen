@@ -151,11 +151,8 @@ Physics.addRigidBody = (mesh, rbShape, type = Body.DYNAMIC, mass = 1) => {
   const body = new Body({
     mass: mass,
     type: type,
-<<<<<<< HEAD
-=======
     allowSleep: true,
     sleepSpeedLimit: 1.0,
->>>>>>> 2abf275b694418b32c8c73fa745d1ad598610151
   });
 
   body.addShape(shape);

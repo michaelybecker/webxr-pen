@@ -1,7 +1,7 @@
 // default scene loaded in src/engine/engine.js
 import { Scene, AxesHelper } from "three";
 
-import PeerConnection from "../../engine/networking/PeerConnection";
+import PeerConnection from "../engine/networking/PeerConnection";
 
 import Pen from "./pen";
 
