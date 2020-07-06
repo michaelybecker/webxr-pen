@@ -140,25 +140,25 @@ export default class Pen extends Object3D {
     this.previousPosition = position;
   }
 
-  // AddPoint(position, orientation, pressure) {
-  //   var points = [];
-  //   var tgeometry = new BufferGeometry();
+  AddPoint(position, orientation, pressure) {
+    var points = [];
+    var tgeometry = new BufferGeometry();
 
-  //   points.push(position.x, position.y, position.z);
+    points.push(position.x, position.y, position.z);
 
-  //   tgeometry.setAttribute("position", new Float32BufferAttribute(points, 3));
+    tgeometry.setAttribute("position", new Float32BufferAttribute(points, 3));
 
-  //   this.pmaterial = new PointsMaterial({
-  //     color: 0xffffff,
-  //     alphaTest: 0.5,
-  //     transparent: true,
-  //     map: this.particleTexture,
-  //     alphaMap: this.particleTexture,
-  //     size: this.currentPressure * 0.65,
-  //   });
-  //   var point = new Points(tgeometry, this.pmaterial);
-  //   this.scene.add(point);
-  // }
+    this.pmaterial = new PointsMaterial({
+      color: 0xffffff,
+      alphaTest: 0.5,
+      transparent: true,
+      map: this.particleTexture,
+      alphaMap: this.particleTexture,
+      size: this.currentPressure * 0.65,
+    });
+    var point = new Points(tgeometry, this.pmaterial);
+    this.scene.add(point);
+  }
   Undo() {
     // console.log("undoing");
     console.log(this.scene.children[this.scene.children.length - 1]);

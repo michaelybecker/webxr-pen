@@ -5,15 +5,12 @@ import {
   SphereBufferGeometry,
   MeshBasicMaterial,
   Mesh,
+  AmbientLight,
 } from "three";
-
-import Renderer from "../engine/renderer";
-
-import XRInput from "../engine/xrinput";
 
 import PeerConnection from "../engine/networking/PeerConnection";
 
-import Pen from "./penxrpk";
+import Pen from "./penxrpk2";
 
 const scene = new Scene();
 const networking = new PeerConnection(scene);
@@ -21,30 +18,13 @@ const networking = new PeerConnection(scene);
 scene.init = () => {
   var axesHelper = new AxesHelper(5);
   scene.add(axesHelper);
-
   const networking = "";
   const pen = new Pen(scene, networking);
   scene.add(pen);
 
-  const m = new Mesh(
-    new SphereBufferGeometry(1, 13, 13),
-    new MeshBasicMaterial({ color: 0xff00ff })
-  );
-  m.position.z -= 2;
-  // m.Update = () => {
-  //   console.log(Renderer.xr.getSession());
-  //   console.log(XRInput);
-  //   if (XRInput.controllerGrips.length > 0) {
-  //     console.log(XRInput.controllerGrips[0].position);
-  //   }
-  // };
-  //   scene.add(m);
+  scene.add(new AmbientLight(0xffffff, 1));
 };
 
-// scene.Undo = () => {
-//   console.log(scene.children[scene.children.length - 3]);
-//   scene.remove(scene.children[scene.children.length - 3]);
-// };
 scene.init();
 
 export { scene };

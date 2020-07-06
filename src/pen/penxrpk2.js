@@ -19,13 +19,14 @@ const penPath = require("./assets/plutopen.glb");
 import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
+import { LineSegmentsGeometry } from "three/examples/jsm/lines/LineSegmentsGeometry";
+import { LineSegments2 } from "three/examples/jsm/lines/LineSegments2";
 import { GeometryUtils } from "three/examples/jsm/utils/GeometryUtils.js";
 
-const MAX_POINTS = 100000;
+const MAX_POINTS = 1000;
 
 export default class Pen extends Object3D {
   constructor(scene, networking, params) {
-    console.log(LineSegmentsGeometry);
     super(params);
     this.networking = networking;
     this.scene = scene;
@@ -46,13 +47,6 @@ export default class Pen extends Object3D {
     Renderer.xr
       .getController(1)
       .addEventListener("selectend", this.StopDrawing.bind(this));
-
-    document.addEventListener("keyup", e => {
-      // console.log(e.keyCode);
-      if (e.keyCode == 32) {
-        this.isDrawing = false;
-      }
-    });
 
     //shapes
     this.material = new MeshBasicMaterial({
@@ -99,30 +93,36 @@ export default class Pen extends Object3D {
     this.activeController = e.target;
     //setup line mesh
     this.positions = new Float32Array(MAX_POINTS * 3); // 3 vertices per point
-    this.linegeo = new BufferGeometry();
+    // this.positions = [];
+    // this.linegeo = new BufferGeometry();
+    this.linegeo = new LineGeometry();
 
-    this.linegeo.setAttribute(
-      "position",
-      new BufferAttribute(this.positions, 3)
-    );
+    // this.linegeo.setAttribute(
+    //   "position",
+    //   new BufferAttribute(this.positions, 3)
+    // );
+    const points = [0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0];
+    this.linegeo.setPositions(this.positions);
 
     this.drawCount = 0;
 
-    this.lineMaterial = new LineBasicMaterial({
+    this.lineMaterial = new LineMaterial({
       color: 0xff0000,
-      linewidth: 4,
+      linewidth: 0.01,
     });
 
     // draw range
-    this.linegeo.setDrawRange(0, this.drawCount);
-
+    // this.linegeo.setDrawRange(0, this.drawCount);
+    this.linegeo.instanceCount = this.drawCount;
     // line
-    this.line = new Line(this.linegeo, this.lineMaterial);
-    this.line.frustumCulled = false;
+    this.line = new Line2(this.linegeo, this.lineMaterial);
+    this.line.scale.set(1, 1, 1);
+    // this.line.computeLineDistances();
+    // this.line.frustumCulled = false;
     this.scene.add(this.line);
   }
   StopDrawing(e) {
-    console.log("stopping");
+    // console.log("stopping");
     this.isDrawing = false;
     // this.activeController = null;
 
@@ -162,8 +162,10 @@ export default class Pen extends Object3D {
     this.positions[this.drawCount * 3 + 2] = position.z;
 
     this.drawCount += 1;
+    this.linegeo.instanceCount = this.drawCount;
     this.linegeo.setDrawRange(0, this.drawCount);
     this.linegeo.attributes.position.needsUpdate = true;
+    this.linegeo.verticesNeedUpdate = true;
   }
 
   // AddPoint(position, orientation, pressure) {
