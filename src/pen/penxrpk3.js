@@ -87,12 +87,10 @@ export default class Pen extends Object3D {
     this.line = new MeshLine();
     // this.line.setAttribute("position", new BufferAttribute(this.positions, 3));
 
-    this.geometry = new Geometry();
     // for (var j = 0; j < Math.PI; j += (2 * Math.PI) / 100) {
     //   var v = new Vector3(Math.cos(j), Math.sin(j), 0);
     //   this.geometry.vertices.push(v);
     // }
-    this.line.setGeometry(this.geometry);
     this.line.setDrawRange(0, 0);
 
     this.lineWmaterial = new MeshLineMaterial({
@@ -116,7 +114,7 @@ export default class Pen extends Object3D {
     this.positions[this.drawCount * 3 + 2] = position.z;
     this.drawCount++;
 
-    this.line.setFromGeometry(this.positions);
+    this.line.setBufferArray(this.positions);
     this.line.setDrawRange(0, this.drawCount);
   }
 
