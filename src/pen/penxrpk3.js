@@ -1,30 +1,12 @@
-import {
-  Mesh,
-  Line,
-  LineBasicMaterial,
-  BufferGeometry,
-  MeshBasicMaterial,
-  DoubleSide,
-  Object3D,
-  SphereBufferGeometry,
-  BufferAttribute,
-  TextureLoader,
-  Vector3,
-} from "three";
-
+import { Mesh, Object3D, BufferAttribute, Geometry, Vector3 } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
+import { MeshLine, MeshLineMaterial } from "threejs-meshline";
 import Renderer from "../engine/renderer";
 import XRInput from "../engine/xrinput";
+
 const penPath = require("./assets/plutopen.glb");
 
-import { Line2 } from "three/examples/jsm/lines/Line2.js";
-import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
-import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
-import { LineSegmentsGeometry } from "three/examples/jsm/lines/LineSegmentsGeometry";
-import { LineSegments2 } from "three/examples/jsm/lines/LineSegments2";
-import { GeometryUtils } from "three/examples/jsm/utils/GeometryUtils.js";
-
-const MAX_POINTS = 1000;
+const MAX_POINTS = 100;
 let curVec = new Vector3();
 
 export default class Pen extends Object3D {
@@ -52,24 +34,6 @@ export default class Pen extends Object3D {
       .getController(1)
       .addEventListener("selectend", this.StopDrawing.bind(this));
 
-    // this.lineMaterial = new LineMaterial({
-    //   color: 0xff0000,
-    //   linewidth: 0.01,
-    // });
-
-    this.lineMaterial = new LineBasicMaterial({
-      color: 0xff0000,
-      linewidth: 0.01,
-    });
-
-    //shapes
-    this.material = new MeshBasicMaterial({
-      color: 0xff0000,
-      side: DoubleSide,
-      flatShading: true,
-    });
-    this.sphereGeometry = new SphereBufferGeometry(1, 12, 12);
-
     //pen model
     var gltfLoader = new GLTFLoader();
     const penRef = this;
@@ -79,10 +43,10 @@ export default class Pen extends Object3D {
       penRef.add(penRef.penModel);
     });
 
-    document.addEventListener("keydown", e => {
-      this.StartDrawing(Renderer.xr.getControllerGrip(0));
-      this.isDrawingDebug = !this.isDrawingDebug;
-    });
+    // document.addEventListener("keydown", e => {
+    //   this.StartDrawing(Renderer.xr.getControllerGrip(0));
+    //   this.isDrawingDebug = !this.isDrawingDebug;
+    // });
     // networking
     // this.networking.remoteSync.addEventListener(
     //   "add",
@@ -104,59 +68,61 @@ export default class Pen extends Object3D {
     //     if (object.parent !== null) object.parent.remove(object);
     //   }
     // );
+
+    //     const vertices = [];
+    //     for (let j = 0; j < Math.PI; j += (2 * Math.PI) / 100)
+    //       vertices.push(new Vector3(Math.cos(j), Math.sin(j), 0));
   }
 
   StartDrawing(e) {
     this.isDrawing = true;
     this.activeController = e.target;
+
     //setup line mesh
     this.positions = new Float32Array(MAX_POINTS * 3); // 3 vertices per point
-    // this.positions = [];
-    this.linegeo = new BufferGeometry();
-    this.linegeo.setAttribute(
-      "position",
-      new BufferAttribute(this.positions, 3)
-    );
-
-    // this.linegeo = new LineGeometry();
-    // this.linegeo.setPositions(this.positions);
 
     // drawCount increases every frame, iterating over the large initial array
     this.drawCount = 0;
 
-    // draw range
-    this.linegeo.setDrawRange(0, this.drawCount);
+    this.line = new MeshLine();
+    // this.line.setAttribute("position", new BufferAttribute(this.positions, 3));
 
-    // this.linegeo.instanceCount = this.drawCount;
-    // line
-    // this.line = new Line2(this.linegeo, this.lineMaterial);
+    this.geometry = new Geometry();
+    // for (var j = 0; j < Math.PI; j += (2 * Math.PI) / 100) {
+    //   var v = new Vector3(Math.cos(j), Math.sin(j), 0);
+    //   this.geometry.vertices.push(v);
+    // }
+    this.line.setGeometry(this.geometry);
+    this.line.setDrawRange(0, 0);
 
-    this.line = new Line(this.linegeo, this.lineMaterial);
-    this.line.computeLineDistances();
-    this.line.scale.set(1, 1, 1);
-
+    this.lineWmaterial = new MeshLineMaterial({
+      color: 0xff0000,
+      lineWidth: 0.015,
+    });
     this.line.frustumCulled = false;
-    this.scene.add(this.line);
+    const mesh = new Mesh(this.line, this.lineWmaterial);
+    this.scene.add(mesh);
   }
   StopDrawing(e) {
     this.isDrawing = false;
   }
 
   DrawLine(position) {
+    // this.geometry.vertices.push(position);
+    // this.geometry.verticesNeedUpdate = true;
+
     this.positions[this.drawCount * 3] = position.x;
     this.positions[this.drawCount * 3 + 1] = position.y;
     this.positions[this.drawCount * 3 + 2] = position.z;
+    this.drawCount++;
 
-    this.drawCount += 1;
-    // this.linegeo.instanceCount = this.drawCount;
-    this.linegeo.setDrawRange(0, this.drawCount);
-    this.linegeo.attributes.position.needsUpdate = true;
-    this.linegeo.verticesNeedUpdate = true;
+    this.line.setFromGeometry(this.positions);
+    this.line.setDrawRange(0, this.drawCount);
   }
 
   Undo() {
     this.drawCount--;
-    this.linegeo.setDrawRange(0, this.drawCount);
+    this.line.setDrawRange(0, this.drawCount);
 
     // this.networking.remoteSync.removeLocalObject(
     //   this.scene.children[this.scene.children.length - 1]
@@ -177,31 +143,31 @@ export default class Pen extends Object3D {
       this.undoBreak = false;
     }, 1);
   }
-
   Update() {
     if (this.activeController && this.penModel) {
       this.penModel.position.copy(this.activeController.position);
       this.penModel.rotation.copy(this.activeController.rotation);
-      if (this.isDrawing) {
-        this.DrawLine(this.activeController.position);
-      } else {
-        // any joystick movement to undo
-        if (!XRInput.inputSources || XRInput.inputSources.length == 0) return;
-        XRInput.inputSources.forEach(input => {
-          input.gamepad.axes.forEach(axis => {
-            if (this.undoBreak) return;
-            if (axis != 0) {
-              this.Undo();
-            }
-          });
+    }
+    if (this.isDrawing) {
+      this.DrawLine(this.activeController.position);
+    } else {
+      // any joystick movement to undo
+      if (!XRInput.inputSources || XRInput.inputSources.length == 0) return;
+      XRInput.inputSources.forEach(input => {
+        input.gamepad.axes.forEach(axis => {
+          if (this.undoBreak) return;
+          if (axis != 0) {
+            this.Undo();
+          }
         });
-      }
+      });
     }
-    if (this.isDrawingDebug) {
-      curVec.x += -0.1 + Math.random() * 0.2;
-      curVec.y += -0.1 + Math.random() * 0.2;
-      curVec.z += -0.1 + Math.random() * 0.2;
-      this.DrawLine(curVec);
-    }
+
+    // if (this.isDrawingDebug) {
+    //   curVec.x += -0.1 + Math.random() * 0.2;
+    //   curVec.y += -0.1 + Math.random() * 0.2;
+    //   curVec.z += -0.1 + Math.random() * 0.2;
+    //   this.DrawLine(curVec);
+    // }
   }
 }

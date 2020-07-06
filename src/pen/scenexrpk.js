@@ -1,16 +1,9 @@
 // default scene loaded in src/engine/engine.js
-import {
-  Scene,
-  AxesHelper,
-  SphereBufferGeometry,
-  MeshBasicMaterial,
-  Mesh,
-  AmbientLight,
-} from "three";
+import { Scene, AxesHelper, AmbientLight } from "three";
 
 import PeerConnection from "../engine/networking/PeerConnection";
 
-import Pen from "./penxrpk2";
+import Pen from "./penxrpk3";
 
 const scene = new Scene();
 const networking = new PeerConnection(scene);
@@ -22,7 +15,7 @@ scene.init = () => {
   const pen = new Pen(scene, networking);
   scene.add(pen);
 
-  scene.add(new AmbientLight(0xffffff, 1));
+  scene.add(new AmbientLight(0xffffff, 4));
 };
 
 scene.init();
