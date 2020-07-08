@@ -1,6 +1,18 @@
 import * as Croquet from "@croquet/croquet";
-// import { Mesh, Object3D } from "three";
-import { Scene, AxesHelper, AmbientLight, Mesh } from "three";
+import {
+  Scene,
+  AxesHelper,
+  AmbientLight,
+  Mesh,
+  // BufferAttribute,
+  // Box3,
+  // Vector3,
+  // Sphere,
+  // Matrix4,
+  // Color,
+  // Vector2,
+  // Euler,
+} from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { MeshLine, MeshLineMaterial } from "threejs-meshline";
 import Renderer from "../engine/renderer";
@@ -14,38 +26,75 @@ scene.add(new AxesHelper(5));
 scene.add(new AmbientLight(0xffffff, 4));
 
 class PenModel extends Croquet.Model {
+  // static types() {
+  //   return {
+  //     MeshLine: MeshLine,
+  //     MeshLineMaterial: MeshLineMaterial,
+  //     BufferAttribute: BufferAttribute,
+  //     Box3: Box3,
+  //     Vector3: Vector3,
+  //     Vector2: Vector2,
+  //     Sphere: Sphere,
+  //     Matrix4: Matrix4,
+  //     Color: Color,
+  //     Mesh: Mesh,
+  //     Scene: Scene,
+  //     Euler: Euler,
+  //   };
+  // }
   init() {
-    // this.scene = scene;
+    // undo array
     this.strokeHistory = [];
+
+    this.subscribe("pen", "draw", this.StartDrawing);
+    this.subscribe("pen", "drawupdate", this.DrawUpdate);
+    this.subscribe("pen", "undo", this.Undo);
+  }
+
+  StartDrawing() {
+    this.isDrawing = true;
+
+    //setup line mesh
+    this.positions = new Float32Array(MAX_POINTS * 3);
+
+    // increases every frame, iterating over this.positions for each stroke
+    this.currentPos = 0;
+
+    this.line = new MeshLine();
+    this.lineMaterial = new MeshLineMaterial({
+      color: 0xff0000,
+      lineWidth: 0.015,
+    });
+    this.line.frustumCulled = false;
+    this.line.setBufferArray(this.positions);
+    this.curStroke = new Mesh(this.line, this.lineMaterial);
+    scene.add(this.curStroke);
+
+    this.strokeHistory.push(this.curStroke);
+  }
+
+  DrawUpdate(position) {
+    // due to setDrawRange perf issues, set *all* remaining points to latest cont position instead
+    for (var i = this.currentPos; i < MAX_POINTS * 3; i++) {
+      this.positions[i * 3] = position[0];
+      this.positions[i * 3 + 1] = position[1];
+      this.positions[i * 3 + 2] = position[2];
+    }
+    this.currentPos++;
+    this.line.setBufferArray(this.positions);
+  }
+
+  Undo() {
+    if (this.undoBreak) return;
+    scene.remove(this.strokeHistory[this.strokeHistory.length - 1]);
+    this.strokeHistory.pop();
+    this.undoBreak = true;
+    setTimeout(() => {
+      this.undoBreak = false;
+    }, 500);
   }
 }
 PenModel.register();
-
-// class PenModel extends Croquet.Model {
-//   init() {
-//     this.count = 0;
-//     this.subscribe("counter", "reset", this.resetCounter);
-//     this.future(1000).tick();
-//   }
-
-//   resetCounter() {
-//     this.count = 0;
-//     this.publish("counter", "update", this.count);
-//   }
-
-//   tick() {
-//     this.count++;
-//     this.publish("counter", "update", this.count);
-//     this.future(1000).tick();
-//   }
-// }
-
-// PenModel.register();
-
-// var d = document.createElement("div");
-// d.id = "countDisplay";
-// d.style.zIndex = 1000;
-// document.body.appendChild(d);
 
 class PenView extends Croquet.View {
   constructor(model) {
@@ -85,7 +134,7 @@ class PenView extends Croquet.View {
           pen.rotation.copy(that.activeController.rotation);
         }
         if (that.isDrawing) {
-          that.DrawLine(that.activeController.position);
+          that.DrawUpdate(that.activeController.position.toArray());
         } else {
           // any joystick movement to undo
           if (!XRInput.inputSources || XRInput.inputSources.length == 0) return;
@@ -103,70 +152,23 @@ class PenView extends Croquet.View {
     });
   }
   StartDrawing(e) {
+    this.activeController = e.target;
     this.isDrawing = true;
-    // this.activeController = e.target;
-    //setup line mesh
-    this.positions = new Float32Array(MAX_POINTS * 3);
-
-    // increases every frame, iterating over this.positions for each stroke
-    this.currentPos = 0;
-
-    this.line = new MeshLine();
-    this.lineMaterial = new MeshLineMaterial({
-      color: 0xff0000,
-      lineWidth: 0.015,
-    });
-    this.line.frustumCulled = false;
-    this.line.setBufferArray(this.positions);
-    this.curStroke = new Mesh(this.line, this.lineMaterial);
-    this.scene.add(this.curStroke);
-
-    //TODO: FIX
-    // this.strokeHistory.push(this.curStroke);
+    this.publish("pen", "draw");
   }
   StopDrawing(e) {
     this.isDrawing = false;
   }
 
-  DrawLine(position) {
-    // due to setDrawRange perf issues, set *all* remaining points to latest cont position instead
-    for (var i = this.currentPos; i < MAX_POINTS * 3; i++) {
-      this.positions[i * 3] = position.x;
-      this.positions[i * 3 + 1] = position.y;
-      this.positions[i * 3 + 2] = position.z;
-    }
-    this.currentPos++;
-    this.line.setBufferArray(this.positions);
+  DrawUpdate(position) {
+    this.publish("pen", "drawupdate", position);
   }
 
   Undo() {
-    this.remove(this.strokeHistory[this.strokeHistory.length - 1]);
-    this.strokeHistory.pop();
-    if (this.scene.children) this.undoBreak = true;
-    setTimeout(() => {
-      this.undoBreak = false;
-    }, 500);
+    this.publish("pen", "undo");
   }
 }
 
-// class PenView extends Croquet.View {
-//   constructor(model) {
-//     super(model);
-
-//     const countDisplay = document.querySelector("#countDisplay");
-//     document.onclick = event => {
-//       this.publish("counter", "reset");
-//     };
-//     this.subscribe("counter", "update", this.handleUpdate);
-//   }
-
-//   handleUpdate(data) {
-//     countDisplay.textContent = data;
-//   }
-// }
-
-Croquet.Session.join("pen-tacostal4", PenModel, PenView);
-
-// const p = new Pen(scene);
+Croquet.Session.join("pen-xrpk5", PenModel, PenView);
 
 export { scene };
