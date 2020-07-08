@@ -7,9 +7,8 @@ const penPath = require("./assets/plutopen.glb");
 const MAX_POINTS = 10000;
 
 export default class Pen extends Object3D {
-  constructor(scene, networking, params) {
+  constructor(scene, params) {
     super(params);
-    this.networking = networking;
     this.scene = scene;
     this.isDrawing = false;
     this.undoBreak = false;
@@ -41,15 +40,6 @@ export default class Pen extends Object3D {
       penRef.penModel = gltf.scene;
       penRef.add(penRef.penModel);
     });
-
-    // this.networking.remoteSync.addEventListener(
-    //   "remove",
-    //   (remotePeerId, objectId, object) => {
-    //     if (State.debugMode) console.log("removing");
-    //     scene.remove(object);
-    //     if (object.parent !== null) object.parent.remove(object);
-    //   }
-    // );
   }
 
   StartDrawing(e) {
@@ -68,12 +58,17 @@ export default class Pen extends Object3D {
     });
     this.line.frustumCulled = false;
     this.line.setBufferArray(this.positions);
-    const mesh = new Mesh(this.line, this.lineMaterial);
-    this.add(mesh);
-    this.strokeHistory.push(mesh);
+    this.curStroke = new Mesh(this.line, this.lineMaterial);
+    this.scene.add(this.curStroke);
+    this.strokeHistory.push(this.curStroke);
   }
   StopDrawing(e) {
     this.isDrawing = false;
+    this.networking.remoteSync.addLocalObject(
+      this.curStroke,
+      { type: "stroke" },
+      true
+    );
   }
 
   DrawLine(position) {
@@ -90,11 +85,6 @@ export default class Pen extends Object3D {
   Undo() {
     this.remove(this.strokeHistory[this.strokeHistory.length - 1]);
     this.strokeHistory.pop();
-
-    // this.networking.remoteSync.removeLocalObject(
-    //   this.scene.children[this.scene.children.length - 1]
-    // );
-
     if (this.scene.children) this.undoBreak = true;
     setTimeout(() => {
       this.undoBreak = false;
@@ -102,8 +92,8 @@ export default class Pen extends Object3D {
   }
   Update() {
     if (this.activeController && this.penModel) {
-      this.penModel.position.copy(this.activeController.position);
-      this.penModel.rotation.copy(this.activeController.rotation);
+      this.position.copy(this.activeController.position);
+      this.rotation.copy(this.activeController.rotation);
     }
     if (this.isDrawing) {
       this.DrawLine(this.activeController.position);
