@@ -10,17 +10,14 @@ import {
   FaceColors,
   CircleGeometry,
   Raycaster,
-  Vector2,
   LineBasicMaterial,
   DoubleSide,
   Color,
-  SphereBufferGeometry,
   Vector3,
   Object3D,
   Matrix4,
   BufferGeometry,
   Line,
-  ArrowHelper,
   OctahedronBufferGeometry,
 } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
@@ -34,18 +31,23 @@ const penSFXPath = require("./assets/audio/pen.ogg");
 const MAX_POINTS = 10000;
 
 const scene = new Scene();
-// scene.add(new AxesHelper(5));
+scene.add(new AxesHelper(5));
 scene.add(new AmbientLight(0xffffff, 4));
 
 class PenModel extends Croquet.Model {
+  static types() {
+    return {
+      Color: Color,
+    };
+  }
   init() {
     this.subscribe("pen", "startdrawingmodel", this.StartDrawing);
     this.subscribe("pen", "stopdrawingmodel", this.StopDrawing);
     this.subscribe("pen", "drawupdatemodel", this.DrawUpdate);
     this.subscribe("pen", "undo", this.Undo);
   }
-  StartDrawing(viewId) {
-    this.publish("pen", "startdrawingview", viewId);
+  StartDrawing(data) {
+    this.publish("pen", "startdrawingview", data);
   }
 
   StopDrawing(viewId) {
@@ -83,7 +85,6 @@ class PenView extends Croquet.View {
     });
 
     State.eventHandler.addEventListener("xrsessionstarted", e => {
-      console.log(e);
       e.addEventListener("selectstart", this.StartDrawing.bind(this));
       e.addEventListener("selectend", this.StopDrawing.bind(this));
     });
@@ -91,32 +92,32 @@ class PenView extends Croquet.View {
     // default to right hand.
     // avoid XRInputs data structures due to XRPK oninputsourcechange bug
     this.primaryControllerGrip = Renderer.xr.getControllerGrip(1);
-    this.secondaryControllerGrip = Renderer.xr.getControllerGrip(0);
     this.primaryController = Renderer.xr.getController(1);
+    this.secondaryControllerGrip = Renderer.xr.getControllerGrip(0);
     this.secondaryController = Renderer.xr.getController(0);
 
     this.CreatePen();
     this.CreateColorPalette();
   }
   StartDrawing(e) {
-    console.log(e.inputSource.handedness);
     switch (e.inputSource.handedness) {
       case "left":
-        this.primaryControllerGrip = Renderer.xr.getControllerGrip(1);
-        this.primaryController = Renderer.xr.getController(1);
-        this.secondaryControllerGrip = Renderer.xr.getControllerGrip(0);
-        this.secondaryController = Renderer.xr.getController(0);
-        break;
-      case "right":
         this.primaryControllerGrip = Renderer.xr.getControllerGrip(0);
         this.primaryController = Renderer.xr.getController(0);
         this.secondaryControllerGrip = Renderer.xr.getControllerGrip(1);
         this.secondaryController = Renderer.xr.getController(1);
+        break;
+      case "right":
+        this.primaryControllerGrip = Renderer.xr.getControllerGrip(1);
+        this.primaryController = Renderer.xr.getController(1);
+        this.secondaryControllerGrip = Renderer.xr.getControllerGrip(0);
+        this.secondaryController = Renderer.xr.getController(0);
       default:
         break;
     }
     if (!this.isPicking) {
-      this.publish("pen", "startdrawingmodel", this.viewId);
+      const data = { viewId: this.viewId, curColor: this.curColor };
+      this.publish("pen", "startdrawingmodel", data);
       this.StartDrawingTemp();
       this.isDrawing = true;
     } else {
@@ -124,7 +125,7 @@ class PenView extends Croquet.View {
     }
   }
 
-  StartDrawingView(viewId) {
+  StartDrawingView(data) {
     //setup line mesh
     this.positions = new Float32Array(MAX_POINTS * 3);
 
@@ -133,19 +134,19 @@ class PenView extends Croquet.View {
 
     this.line = new MeshLine();
     this.lineMaterial = new MeshLineMaterial({
-      color: this.curColor,
+      color: data.curColor,
       lineWidth: 0.015,
     });
     this.line.frustumCulled = false;
     this.line.setBufferArray(this.positions);
     this.curStroke = new Mesh(this.line, this.lineMaterial);
-    this.curStroke.userID = viewId;
+    this.curStroke.userID = data.viewId;
     scene.add(this.curStroke);
-    if (this.strokeHistory[viewId] == undefined) {
-      this.strokeHistory[viewId] = [];
+    if (this.strokeHistory[data.viewId] == undefined) {
+      this.strokeHistory[data.viewId] = [];
     }
 
-    this.strokeHistory[viewId].push(this.curStroke);
+    this.strokeHistory[data.viewId].push(this.curStroke);
   }
 
   StartDrawingTemp() {
@@ -277,6 +278,7 @@ class PenView extends Croquet.View {
     };
     this.palette.cc.updateColor = color => {
       this.palette.cc.material.color = color;
+      this.line1.material.color = color;
     };
     this.palette.cc.rotateOnAxis(new Vector3(1, 0, 0), Math.PI / 2);
     // this.palette.cc.position.z += 0.025;
@@ -296,13 +298,22 @@ class PenView extends Croquet.View {
 
     var geometry = new BufferGeometry().setFromPoints([
       new Vector3(0, 0, 0),
-      new Vector3(0, 1, 0),
+      new Vector3(0, -1, 0),
     ]);
 
-    var line = new Line(geometry, new LineBasicMaterial({ color: 0xff00ff }));
+    var line = new Line(
+      geometry,
+      new LineBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 1 })
+    );
     line.name = "line";
-    line.scale.z = 5;
+    line.scale.y = 0.1;
     this.line1 = line.clone();
+    this.line1.Update = () => {
+      if (this.primaryControllerGrip) {
+        this.line1.position.copy(this.primaryControllerGrip.position);
+        this.line1.material.opacity = this.isPicking ? 1 : 0;
+      }
+    };
     this.scene.add(this.line1);
     // this.line2 = line.clone();
     // this.primaryControllerGrip.add(this.line1);
@@ -317,6 +328,7 @@ class PenView extends Croquet.View {
     this.raycaster.ray.origin = controller.position;
 
     this.raycaster.ray.direction.set(0, -1, 0).applyMatrix4(tempMatrix);
+
     this.raycaster.ray.far = 0.05;
 
     var intersects = this.raycaster.intersectObject(this.paletteCont, true);
@@ -326,7 +338,6 @@ class PenView extends Croquet.View {
     } else {
       this.isPicking = false;
     }
-    // console.log(intersects[0].face);
   }
 
   CreatePen() {
