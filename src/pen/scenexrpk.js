@@ -23,8 +23,8 @@ class PenModel extends Croquet.Model {
     this.publish("pen", "startdrawlocal", viewId);
   }
 
-  DrawUpdate(position) {
-    this.publish("pen", "drawupdatelocal", position);
+  DrawUpdate(position, viewId) {
+    this.publish("pen", "drawupdatelocal", position, viewId);
   }
 
   Undo(viewID) {
@@ -115,6 +115,7 @@ class PenView extends Croquet.View {
     this.line.frustumCulled = false;
     this.line.setBufferArray(this.positions);
     this.curStroke = new Mesh(this.line, this.lineMaterial);
+    this.curStroke.userID = viewId;
     scene.add(this.curStroke);
     if (this.strokeHistory[viewId] == undefined) {
       this.strokeHistory[viewId] = [];
@@ -149,7 +150,7 @@ class PenView extends Croquet.View {
   }
 
   DrawUpdate(position) {
-    this.publish("pen", "drawupdatemodel", position);
+    this.publish("pen", "drawupdatemodel", position, this.viewId);
 
     // also draw temporary line locally for smoother feedback
     for (let i = this.tempCurrentPos; i < MAX_POINTS * 3; i++) {
@@ -161,7 +162,8 @@ class PenView extends Croquet.View {
     this.tempLine.setBufferArray(this.tempPositions);
   }
 
-  DrawUpdateLocal(position) {
+  DrawUpdateLocal(position, viewId) {
+    if (this.curStroke.viewId != viewId) return;
     // due to setDrawRange perf issues, set *all* remaining points to latest cont position instead
     for (let i = this.currentPos; i < MAX_POINTS * 3; i++) {
       this.positions[i * 3] = position[0];
@@ -169,6 +171,7 @@ class PenView extends Croquet.View {
       this.positions[i * 3 + 2] = position[2];
     }
     this.currentPos++;
+
     this.line.setBufferArray(this.positions);
   }
 
