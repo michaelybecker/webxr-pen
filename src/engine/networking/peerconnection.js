@@ -1,8 +1,8 @@
-import RS from "./remotesync";
+import RS from "./RemoteSync";
 import State from "../state";
 import { Object3D } from "three";
-import FirebaseSignalingServer from "./firebasesignalingserver";
-import WebRTCClient from "./webrtcclient";
+import FirebaseSignalingServer from "./FirebaseSignalingServer";
+import WebRTCClient from "./WebRTCClient";
 
 class PeerConnection {
   constructor(scene, stream) {
@@ -34,8 +34,6 @@ class PeerConnection {
     this.remoteSync.addEventListener("receive", this.onReceive.bind(this));
     this.remoteSync.addEventListener("add", this.onAdd.bind(this));
     this.remoteSync.addEventListener("remove", this.onRemove.bind(this));
-    this.remoteSync.addEventListener("master", this.onPrimary.bind(this));
-    this.remoteSync.addEventListener("slave", this.onSecondary.bind(this));
 
     //add networking update method
     const networkingUpdate = new Object3D();
@@ -63,14 +61,6 @@ class PeerConnection {
     // console.log(data);
   }
 
-  onPrimary(data) {
-    State.isPrimary = true;
-  }
-
-  onSecondary(data) {
-    State.isPrimary = false;
-  }
-
   onAdd(destId, objectId, info) {
     if (State.debugMode) {
       console.log("onAdd: adding " + objectId);
@@ -96,6 +86,15 @@ class PeerConnection {
 
   onConnect(destId) {
     if (State.debugMode) console.log("onConnect: Connected with " + destId);
+
+    // weird race condition workaround
+    setTimeout(
+      function () {
+        State.isMaster = this.remoteSync.master;
+        if (State.debugMode) console.log("Master: " + State.isMaster);
+      }.bind(this),
+      1
+    );
   }
 
   onDisconnect(destId, object) {

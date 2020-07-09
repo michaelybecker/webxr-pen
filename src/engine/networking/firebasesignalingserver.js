@@ -10,7 +10,7 @@ require("firebase/auth");
 require("firebase/database");
 
 import { Math } from "three";
-import RS from "./remotesync";
+import RS from "./RemoteSync";
 
 /**
  * FirebaseSignalingServer constructor.
