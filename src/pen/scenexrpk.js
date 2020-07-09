@@ -19,9 +19,8 @@ class PenModel extends Croquet.Model {
     this.subscribe("pen", "undo", this.Undo);
   }
 
-  StartDrawing() {
-    //update multi stroke dictionary
-    this.publish("pen", "startdrawlocal");
+  StartDrawing(viewId) {
+    this.publish("pen", "startdrawlocal", viewId);
   }
 
   DrawUpdate(position) {
@@ -29,7 +28,7 @@ class PenModel extends Croquet.Model {
   }
 
   Undo(viewID) {
-    this.publish("pen", "undolocal");
+    this.publish("pen", "undolocal", viewID);
   }
 }
 PenModel.register();
@@ -45,7 +44,7 @@ class PenView extends Croquet.View {
     this.scene = scene;
     this.isDrawing = false;
     this.undoBreak = false;
-    this.strokeHistory = [];
+    this.strokeHistory = {};
 
     // default to right hand.
     // avoid XRInputs data structures due to XRPK oninputsourcechange bug
@@ -96,12 +95,12 @@ class PenView extends Croquet.View {
   }
   StartDrawing(e) {
     this.activeController = e.target;
-    this.isDrawing = true;
-    this.publish("pen", "startdrawmodel");
+    this.publish("pen", "startdrawmodel", this.viewId);
     this.StartDrawTemp();
+    this.isDrawing = true;
   }
 
-  StartDrawLocal() {
+  StartDrawLocal(viewId) {
     //setup line mesh
     this.positions = new Float32Array(MAX_POINTS * 3);
 
@@ -117,7 +116,11 @@ class PenView extends Croquet.View {
     this.line.setBufferArray(this.positions);
     this.curStroke = new Mesh(this.line, this.lineMaterial);
     scene.add(this.curStroke);
-    this.strokeHistory.push(this.curStroke);
+    if (this.strokeHistory[viewId] == undefined) {
+      this.strokeHistory[viewId] = [];
+    }
+
+    this.strokeHistory[viewId].push(this.curStroke);
   }
 
   StartDrawTemp() {
@@ -170,13 +173,15 @@ class PenView extends Croquet.View {
   }
 
   Undo() {
-    this.publish("pen", "undo");
+    this.publish("pen", "undo", this.viewId);
   }
 
-  UndoLocal() {
+  UndoLocal(viewId) {
     if (this.undoBreak) return;
-    scene.remove(this.strokeHistory[this.strokeHistory.length - 1]);
-    this.strokeHistory.pop();
+    scene.remove(
+      this.strokeHistory[viewId][this.strokeHistory[viewId].length - 1]
+    );
+    this.strokeHistory[viewId].pop();
     this.undoBreak = true;
     setTimeout(() => {
       this.undoBreak = false;
