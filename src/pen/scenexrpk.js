@@ -1,34 +1,48 @@
 import * as Croquet from "@croquet/croquet";
-import { Scene, AxesHelper, AmbientLight, Mesh } from "three";
+import {
+  AmbientLight,
+  AudioLoader,
+  AxesHelper,
+  Mesh,
+  PositionalAudio,
+  SphereBufferGeometry,
+  MeshNormalMaterial,
+  Scene,
+} from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { MeshLine, MeshLineMaterial } from "threejs-meshline";
+import { Camera } from "../engine/engine";
 import Renderer from "../engine/renderer";
 import XRInput from "../engine/xrinput";
 const penPath = require("./assets/plutopen.glb");
+const penSFXPath = require("./assets/audio/pen.ogg");
+const penSFXDict = {};
 const MAX_POINTS = 10000;
-
-let pen;
 const scene = new Scene();
 scene.add(new AxesHelper(5));
 scene.add(new AmbientLight(0xffffff, 4));
 
 class PenModel extends Croquet.Model {
   init() {
-    this.subscribe("pen", "startdrawmodel", this.StartDrawing);
+    this.subscribe("pen", "startdrawingmodel", this.StartDrawing);
+    this.subscribe("pen", "stopdrawingmodel", this.StopDrawing);
     this.subscribe("pen", "drawupdatemodel", this.DrawUpdate);
     this.subscribe("pen", "undo", this.Undo);
   }
-
   StartDrawing(viewId) {
-    this.publish("pen", "startdrawlocal", viewId);
+    this.publish("pen", "startdrawingview", viewId);
   }
 
-  DrawUpdate(position, viewId) {
-    this.publish("pen", "drawupdatelocal", position, viewId);
+  StopDrawing(viewId) {
+    this.publish("pen", "stopdrawingview", viewId);
+  }
+
+  DrawUpdate(data) {
+    this.publish("pen", "drawupdateview", data);
   }
 
   Undo(viewID) {
-    this.publish("pen", "undolocal", viewID);
+    this.publish("pen", "undoview", viewID);
   }
 }
 PenModel.register();
@@ -37,14 +51,22 @@ class PenView extends Croquet.View {
   constructor(model) {
     super(model);
 
-    this.subscribe("pen", "startdrawlocal", this.StartDrawLocal);
-    this.subscribe("pen", "drawupdatelocal", this.DrawUpdateLocal);
-    this.subscribe("pen", "undolocal", this.UndoLocal);
+    this.subscribe("pen", "startdrawingview", this.StartDrawingView);
+    this.subscribe("pen", "stopdrawingview", this.StopDrawingView);
+    this.subscribe("pen", "drawupdateview", this.DrawUpdateView);
+    this.subscribe("pen", "undoview", this.UndoView);
 
     this.scene = scene;
     this.isDrawing = false;
     this.undoBreak = false;
     this.strokeHistory = {};
+
+    //cam race condition hack
+    // setTimeout(e => {
+    const al = new AudioLoader().load(penSFXPath, buffer => {
+      this.penSFXBuffer = buffer;
+    });
+    // }, 1);
 
     // default to right hand.
     // avoid XRInputs data structures due to XRPK oninputsourcechange bug
@@ -67,6 +89,7 @@ class PenView extends Croquet.View {
     //pen model
     var gltfLoader = new GLTFLoader();
     const that = this;
+    let pen;
     gltfLoader.load(penPath, function (gltf) {
       pen = gltf.scene;
 
@@ -76,7 +99,7 @@ class PenView extends Croquet.View {
           pen.rotation.copy(that.activeController.rotation);
         }
         if (that.isDrawing) {
-          that.DrawUpdate(that.activeController.position.toArray());
+          that.DrawUpdateModel(that.activeController.position.toArray());
         } else {
           // any joystick movement to undo
           if (!XRInput.inputSources || XRInput.inputSources.length == 0) return;
@@ -84,7 +107,7 @@ class PenView extends Croquet.View {
             input.gamepad.axes.forEach(axis => {
               if (that.undoBreak) return;
               if (axis != 0) {
-                that.Undo();
+                that.UndoModel();
               }
             });
           });
@@ -95,12 +118,12 @@ class PenView extends Croquet.View {
   }
   StartDrawing(e) {
     this.activeController = e.target;
-    this.publish("pen", "startdrawmodel", this.viewId);
-    this.StartDrawTemp();
+    this.publish("pen", "startdrawingmodel", this.viewId);
+    this.StartDrawingTemp();
     this.isDrawing = true;
   }
 
-  StartDrawLocal(viewId) {
+  StartDrawingView(viewId) {
     //setup line mesh
     this.positions = new Float32Array(MAX_POINTS * 3);
 
@@ -124,7 +147,7 @@ class PenView extends Croquet.View {
     this.strokeHistory[viewId].push(this.curStroke);
   }
 
-  StartDrawTemp() {
+  StartDrawingTemp() {
     //setup line mesh
     this.tempPositions = new Float32Array(MAX_POINTS * 3);
 
@@ -143,14 +166,19 @@ class PenView extends Croquet.View {
   }
 
   StopDrawing(e) {
+    this.publish("pen", "stopdrawingmodel", this.viewId);
     this.isDrawing = false;
-
     // remove temporary local line
     scene.remove(this.tempCurStroke);
   }
 
-  DrawUpdate(position) {
-    this.publish("pen", "drawupdatemodel", position, this.viewId);
+  StopDrawingView(viewId) {
+    this.StopFX(viewId);
+  }
+
+  DrawUpdateModel(position) {
+    const data = { position: position, viewId: this.viewId };
+    this.publish("pen", "drawupdatemodel", data);
 
     // also draw temporary line locally for smoother feedback
     for (let i = this.tempCurrentPos; i < MAX_POINTS * 3; i++) {
@@ -162,24 +190,24 @@ class PenView extends Croquet.View {
     this.tempLine.setBufferArray(this.tempPositions);
   }
 
-  DrawUpdateLocal(position, viewId) {
-    if (this.curStroke.viewId != viewId) return;
+  DrawUpdateView(data) {
     // due to setDrawRange perf issues, set *all* remaining points to latest cont position instead
     for (let i = this.currentPos; i < MAX_POINTS * 3; i++) {
-      this.positions[i * 3] = position[0];
-      this.positions[i * 3 + 1] = position[1];
-      this.positions[i * 3 + 2] = position[2];
+      this.positions[i * 3] = data.position[0];
+      this.positions[i * 3 + 1] = data.position[1];
+      this.positions[i * 3 + 2] = data.position[2];
     }
     this.currentPos++;
 
     this.line.setBufferArray(this.positions);
+    this.PlayFX(data);
   }
 
-  Undo() {
+  UndoModel() {
     this.publish("pen", "undo", this.viewId);
   }
 
-  UndoLocal(viewId) {
+  UndoView(viewId) {
     if (this.undoBreak) return;
     scene.remove(
       this.strokeHistory[viewId][this.strokeHistory[viewId].length - 1]
@@ -190,8 +218,32 @@ class PenView extends Croquet.View {
       this.undoBreak = false;
     }, 500);
   }
+
+  PlayFX(data) {
+    const idS = data.viewId;
+    if (penSFXDict[idS] == undefined) {
+      penSFXDict[idS] = new PositionalAudio(Camera.audioListener);
+      penSFXDict[idS].gain.gain.value = 0.3;
+      penSFXDict[idS].setLoop(true);
+      console.log(penSFXDict[idS].gain.gain.value);
+      penSFXDict[idS].setRefDistance(10);
+
+      penSFXDict[idS].setBuffer(this.penSFXBuffer);
+      scene.add(penSFXDict[idS]);
+    }
+    penSFXDict[idS].position.x = data.position[0];
+    penSFXDict[idS].position.y = data.position[1];
+    penSFXDict[idS].position.z = data.position[2];
+    if (!penSFXDict[idS].isPlaying) penSFXDict[idS].play();
+  }
+
+  StopFX(viewId) {
+    if (penSFXDict[viewId] == undefined || !penSFXDict[viewId].isPlaying)
+      return;
+    penSFXDict[viewId].stop();
+  }
 }
 
-Croquet.Session.join("awegfaweg6", PenModel, PenView);
+Croquet.Session.join("awegfaweg8", PenModel, PenView);
 
 export { scene };
