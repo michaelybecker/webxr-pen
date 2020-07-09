@@ -5,9 +5,18 @@ import {
   AxesHelper,
   Mesh,
   PositionalAudio,
-  SphereBufferGeometry,
-  MeshNormalMaterial,
+  PlaneBufferGeometry,
+  MeshBasicMaterial,
   Scene,
+  FaceColors,
+  PlaneGeometry,
+  CircleGeometry,
+  Raycaster,
+  Vector2,
+  DoubleSide,
+  Color,
+  SphereBufferGeometry,
+  Vector3,
 } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { MeshLine, MeshLineMaterial } from "threejs-meshline";
@@ -16,8 +25,8 @@ import Renderer from "../engine/renderer";
 import XRInput from "../engine/xrinput";
 const penPath = require("./assets/plutopen.glb");
 const penSFXPath = require("./assets/audio/pen.ogg");
-const penSFXDict = {};
 const MAX_POINTS = 10000;
+
 const scene = new Scene();
 scene.add(new AxesHelper(5));
 scene.add(new AmbientLight(0xffffff, 4));
@@ -60,6 +69,8 @@ class PenView extends Croquet.View {
     this.isDrawing = false;
     this.undoBreak = false;
     this.strokeHistory = {};
+    this.curColor = new Color(0xff0000);
+    this.penSFXDict = {};
 
     //cam race condition hack
     // setTimeout(e => {
@@ -71,6 +82,7 @@ class PenView extends Croquet.View {
     // default to right hand.
     // avoid XRInputs data structures due to XRPK oninputsourcechange bug
     this.activeController = Renderer.xr.getControllerGrip(1);
+    this.secondaryController = Renderer.xr.getControllerGrip(2);
     this.activeInputSource = Renderer.xr.getController(1);
 
     Renderer.xr
@@ -86,38 +98,15 @@ class PenView extends Croquet.View {
       .getController(1)
       .addEventListener("selectend", this.StopDrawing.bind(this));
 
-    //pen model
-    var gltfLoader = new GLTFLoader();
-    const that = this;
-    let pen;
-    gltfLoader.load(penPath, function (gltf) {
-      pen = gltf.scene;
-
-      pen.Update = () => {
-        if (that.activeController) {
-          pen.position.copy(that.activeController.position);
-          pen.rotation.copy(that.activeController.rotation);
-        }
-        if (that.isDrawing) {
-          that.DrawUpdateModel(that.activeController.position.toArray());
-        } else {
-          // any joystick movement to undo
-          if (!XRInput.inputSources || XRInput.inputSources.length == 0) return;
-          XRInput.inputSources.forEach(input => {
-            input.gamepad.axes.forEach(axis => {
-              if (that.undoBreak) return;
-              if (axis != 0) {
-                that.UndoModel();
-              }
-            });
-          });
-        }
-      };
-      scene.add(pen);
-    });
+    this.CreatePen();
+    this.CreateColorPalette();
   }
   StartDrawing(e) {
     this.activeController = e.target;
+    this.secondaryController =
+      this.activeController == Renderer.xr.getControllerGrip(1)
+        ? Renderer.xr.getControllerGrip(2)
+        : Renderer.xr.getControllerGrip(1);
     this.publish("pen", "startdrawingmodel", this.viewId);
     this.StartDrawingTemp();
     this.isDrawing = true;
@@ -132,7 +121,7 @@ class PenView extends Croquet.View {
 
     this.line = new MeshLine();
     this.lineMaterial = new MeshLineMaterial({
-      color: 0xff0000,
+      color: this.curColor,
       lineWidth: 0.015,
     });
     this.line.frustumCulled = false;
@@ -221,26 +210,116 @@ class PenView extends Croquet.View {
 
   PlayFX(data) {
     const idS = data.viewId;
-    if (penSFXDict[idS] == undefined) {
-      penSFXDict[idS] = new PositionalAudio(Camera.audioListener);
-      penSFXDict[idS].gain.gain.value = 0.3;
-      penSFXDict[idS].setLoop(true);
-      console.log(penSFXDict[idS].gain.gain.value);
-      penSFXDict[idS].setRefDistance(10);
+    if (this.penSFXDict[idS] == undefined) {
+      this.penSFXDict[idS] = new PositionalAudio(Camera.audioListener);
+      this.penSFXDict[idS].gain.gain.value = 0.3;
+      this.penSFXDict[idS].setLoop(true);
 
-      penSFXDict[idS].setBuffer(this.penSFXBuffer);
-      scene.add(penSFXDict[idS]);
+      this.penSFXDict[idS].setRefDistance(10);
+
+      this.penSFXDict[idS].setBuffer(this.penSFXBuffer);
+      scene.add(this.penSFXDict[idS]);
     }
-    penSFXDict[idS].position.x = data.position[0];
-    penSFXDict[idS].position.y = data.position[1];
-    penSFXDict[idS].position.z = data.position[2];
-    if (!penSFXDict[idS].isPlaying) penSFXDict[idS].play();
+    this.penSFXDict[idS].position.x = data.position[0];
+    this.penSFXDict[idS].position.y = data.position[1];
+    this.penSFXDict[idS].position.z = data.position[2];
+    if (!this.penSFXDict[idS].isPlaying) this.penSFXDict[idS].play();
   }
 
   StopFX(viewId) {
-    if (penSFXDict[viewId] == undefined || !penSFXDict[viewId].isPlaying)
+    if (
+      this.penSFXDict[viewId] == undefined ||
+      !this.penSFXDict[viewId].isPlaying
+    )
       return;
-    penSFXDict[viewId].stop();
+    this.penSFXDict[viewId].stop();
+  }
+
+  CreateColorPalette() {
+    // const pgeo = new PlaneGeometry(0.2, 0.2, 64, 64);
+    const pgeo = new CircleGeometry(0.075, 256);
+    pgeo.faces.forEach((face, i) => {
+      face.color.setHSL(i / pgeo.faces.length, 1, 0.5);
+    });
+    const pmat = new MeshBasicMaterial({
+      vertexColors: FaceColors,
+      transparent: true,
+      opacity: 0.75,
+      side: DoubleSide,
+      // wireframe: true,
+    });
+    this.palette = new Mesh(pgeo, pmat);
+    scene.add(this.palette);
+
+    this.palette.cc = new Mesh(
+      new SphereBufferGeometry(0.0075, 16),
+      new MeshBasicMaterial({ color: this.curColor, wireframe: true })
+    );
+    this.palette.cc.Update = () => {
+      this.palette.cc.rotation.x += 0.001;
+      this.palette.cc.rotation.z -= 0.001;
+    };
+    // this.palette.cc.position.z += 0.024;
+    this.palette.cc.rotateOnAxis(new Vector3(0, 0, 1), Math.PI / 2);
+    this.palette.add(this.palette.cc);
+
+    var raycaster = new Raycaster();
+    var mouse = new Vector2();
+    var that = this;
+
+    function onMouseMove(event) {
+      // calculate mouse position in normalized device coordinates
+      // (-1 to +1) for both components
+
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, Camera);
+      var intersects = raycaster.intersectObjects(scene.children);
+      for (var i = 0; i < intersects.length; i++) {
+        // intersects[i].object.material.color.set(0xff0000);
+        if (intersects[i].face == undefined) return;
+        that.curColor = intersects[i].face.color;
+        that.palette.cc.material.color = that.curColor;
+      }
+    }
+
+    window.addEventListener("mousemove", onMouseMove, false);
+  }
+
+  CreatePen() {
+    //pen model
+    var gltfLoader = new GLTFLoader();
+    const that = this;
+
+    gltfLoader.load(penPath, function (gltf) {
+      that.pen = gltf.scene;
+
+      that.pen.Update = () => {
+        if (that.activeController && that.pen) {
+          that.pen.position.copy(that.activeController.position);
+          that.pen.rotation.copy(that.activeController.rotation);
+        }
+        if (that.secondaryController && that.palette) {
+          that.palette.position.copy(that.secondaryController.position);
+          that.palette.rotation.copy(that.secondaryController.rotation);
+        }
+        if (that.isDrawing) {
+          that.DrawUpdateModel(that.activeController.position.toArray());
+        } else {
+          // any joystick movement to undo
+          if (!XRInput.inputSources || XRInput.inputSources.length == 0) return;
+          XRInput.inputSources.forEach(input => {
+            input.gamepad.axes.forEach(axis => {
+              if (that.undoBreak) return;
+              if (axis != 0) {
+                that.UndoModel();
+              }
+            });
+          });
+        }
+      };
+      scene.add(that.pen);
+    });
   }
 }
 
