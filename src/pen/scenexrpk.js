@@ -5,30 +5,36 @@ import {
   AxesHelper,
   Mesh,
   PositionalAudio,
-  PlaneBufferGeometry,
   MeshBasicMaterial,
   Scene,
   FaceColors,
-  PlaneGeometry,
   CircleGeometry,
   Raycaster,
   Vector2,
+  LineBasicMaterial,
   DoubleSide,
   Color,
   SphereBufferGeometry,
   Vector3,
+  Object3D,
+  Matrix4,
+  BufferGeometry,
+  Line,
+  ArrowHelper,
+  OctahedronBufferGeometry,
 } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { MeshLine, MeshLineMaterial } from "threejs-meshline";
 import { Camera } from "../engine/engine";
 import Renderer from "../engine/renderer";
+import State from "../engine/state";
 import XRInput from "../engine/xrinput";
 const penPath = require("./assets/plutopen.glb");
 const penSFXPath = require("./assets/audio/pen.ogg");
 const MAX_POINTS = 10000;
 
 const scene = new Scene();
-scene.add(new AxesHelper(5));
+// scene.add(new AxesHelper(5));
 scene.add(new AmbientLight(0xffffff, 4));
 
 class PenModel extends Croquet.Model {
@@ -72,44 +78,50 @@ class PenView extends Croquet.View {
     this.curColor = new Color(0xff0000);
     this.penSFXDict = {};
 
-    //cam race condition hack
-    // setTimeout(e => {
     const al = new AudioLoader().load(penSFXPath, buffer => {
       this.penSFXBuffer = buffer;
     });
-    // }, 1);
+
+    State.eventHandler.addEventListener("xrsessionstarted", e => {
+      console.log(e);
+      e.addEventListener("selectstart", this.StartDrawing.bind(this));
+      e.addEventListener("selectend", this.StopDrawing.bind(this));
+    });
 
     // default to right hand.
     // avoid XRInputs data structures due to XRPK oninputsourcechange bug
-    this.activeController = Renderer.xr.getControllerGrip(1);
-    this.secondaryController = Renderer.xr.getControllerGrip(2);
-    this.activeInputSource = Renderer.xr.getController(1);
-
-    Renderer.xr
-      .getController(0)
-      .addEventListener("selectstart", this.StartDrawing.bind(this));
-    Renderer.xr
-      .getController(1)
-      .addEventListener("selectstart", this.StartDrawing.bind(this));
-    Renderer.xr
-      .getController(0)
-      .addEventListener("selectend", this.StopDrawing.bind(this));
-    Renderer.xr
-      .getController(1)
-      .addEventListener("selectend", this.StopDrawing.bind(this));
+    this.primaryControllerGrip = Renderer.xr.getControllerGrip(1);
+    this.secondaryControllerGrip = Renderer.xr.getControllerGrip(0);
+    this.primaryController = Renderer.xr.getController(1);
+    this.secondaryController = Renderer.xr.getController(0);
 
     this.CreatePen();
     this.CreateColorPalette();
   }
   StartDrawing(e) {
-    this.activeController = e.target;
-    this.secondaryController =
-      this.activeController == Renderer.xr.getControllerGrip(1)
-        ? Renderer.xr.getControllerGrip(2)
-        : Renderer.xr.getControllerGrip(1);
-    this.publish("pen", "startdrawingmodel", this.viewId);
-    this.StartDrawingTemp();
-    this.isDrawing = true;
+    console.log(e.inputSource.handedness);
+    switch (e.inputSource.handedness) {
+      case "left":
+        this.primaryControllerGrip = Renderer.xr.getControllerGrip(1);
+        this.primaryController = Renderer.xr.getController(1);
+        this.secondaryControllerGrip = Renderer.xr.getControllerGrip(0);
+        this.secondaryController = Renderer.xr.getController(0);
+        break;
+      case "right":
+        this.primaryControllerGrip = Renderer.xr.getControllerGrip(0);
+        this.primaryController = Renderer.xr.getController(0);
+        this.secondaryControllerGrip = Renderer.xr.getControllerGrip(1);
+        this.secondaryController = Renderer.xr.getController(1);
+      default:
+        break;
+    }
+    if (!this.isPicking) {
+      this.publish("pen", "startdrawingmodel", this.viewId);
+      this.StartDrawingTemp();
+      this.isDrawing = true;
+    } else {
+      this.curColor = this.palette.cc.material.color;
+    }
   }
 
   StartDrawingView(viewId) {
@@ -145,7 +157,7 @@ class PenView extends Croquet.View {
 
     this.tempLine = new MeshLine();
     this.tempLineMaterial = new MeshLineMaterial({
-      color: 0xff0000,
+      color: this.curColor,
       lineWidth: 0.015,
     });
     this.tempLine.frustumCulled = false;
@@ -244,46 +256,77 @@ class PenView extends Croquet.View {
     const pmat = new MeshBasicMaterial({
       vertexColors: FaceColors,
       transparent: true,
-      opacity: 0.75,
+      opacity: 0.65,
       side: DoubleSide,
       // wireframe: true,
     });
     this.palette = new Mesh(pgeo, pmat);
-    scene.add(this.palette);
 
     this.palette.cc = new Mesh(
-      new SphereBufferGeometry(0.0075, 16),
+      new OctahedronBufferGeometry(0.015),
       new MeshBasicMaterial({ color: this.curColor, wireframe: true })
     );
+    this.palette.cc.position.z += 0.015;
     this.palette.cc.Update = () => {
-      this.palette.cc.rotation.x += 0.001;
-      this.palette.cc.rotation.z -= 0.001;
+      this.palette.cc.rotation.y += 0.005;
+      this.palette.cc.rotation.z += 0.005;
+      if (this.secondaryControllerGrip && this.palette) {
+        this.paletteCont.position.copy(this.secondaryControllerGrip.position);
+        this.paletteCont.rotation.copy(this.secondaryControllerGrip.rotation);
+      }
     };
-    // this.palette.cc.position.z += 0.024;
-    this.palette.cc.rotateOnAxis(new Vector3(0, 0, 1), Math.PI / 2);
-    this.palette.add(this.palette.cc);
+    this.palette.cc.updateColor = color => {
+      this.palette.cc.material.color = color;
+    };
+    this.palette.cc.rotateOnAxis(new Vector3(1, 0, 0), Math.PI / 2);
+    // this.palette.cc.position.z += 0.025;
 
-    var raycaster = new Raycaster();
-    var mouse = new Vector2();
+    this.palette.add(this.palette.cc);
+    this.paletteCont = new Object3D();
+    this.palette.rotateOnAxis(new Vector3(1, 0, 0), Math.PI / -2);
+    this.paletteCont.add(this.palette);
+    this.palette.position.y += 0.125;
+
+    scene.add(this.paletteCont);
+
+    this.raycaster = new Raycaster();
+
+    // var mouse = new Vector2();
     var that = this;
 
-    function onMouseMove(event) {
-      // calculate mouse position in normalized device coordinates
-      // (-1 to +1) for both components
+    var geometry = new BufferGeometry().setFromPoints([
+      new Vector3(0, 0, 0),
+      new Vector3(0, 1, 0),
+    ]);
 
-      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-      raycaster.setFromCamera(mouse, Camera);
-      var intersects = raycaster.intersectObjects(scene.children);
-      for (var i = 0; i < intersects.length; i++) {
-        // intersects[i].object.material.color.set(0xff0000);
-        if (intersects[i].face == undefined) return;
-        that.curColor = intersects[i].face.color;
-        that.palette.cc.material.color = that.curColor;
-      }
+    var line = new Line(geometry, new LineBasicMaterial({ color: 0xff00ff }));
+    line.name = "line";
+    line.scale.z = 5;
+    this.line1 = line.clone();
+    this.scene.add(this.line1);
+    // this.line2 = line.clone();
+    // this.primaryControllerGrip.add(this.line1);
+    // this.secondaryControllerGrip.add(this.line2);
+    this.scene.add(this.primaryControllerGrip);
+    this.scene.add(this.secondaryControllerGrip);
+  }
+
+  getIntersections(controller) {
+    var tempMatrix = new Matrix4();
+    tempMatrix.identity().extractRotation(controller.matrixWorld);
+    this.raycaster.ray.origin = controller.position;
+
+    this.raycaster.ray.direction.set(0, -1, 0).applyMatrix4(tempMatrix);
+    this.raycaster.ray.far = 0.05;
+
+    var intersects = this.raycaster.intersectObject(this.paletteCont, true);
+    if (intersects[0] != undefined && intersects[0].face != undefined) {
+      this.isPicking = true;
+      this.palette.cc.updateColor(intersects[0].face.color);
+    } else {
+      this.isPicking = false;
     }
-
-    window.addEventListener("mousemove", onMouseMove, false);
+    // console.log(intersects[0].face);
   }
 
   CreatePen() {
@@ -295,16 +338,13 @@ class PenView extends Croquet.View {
       that.pen = gltf.scene;
 
       that.pen.Update = () => {
-        if (that.activeController && that.pen) {
-          that.pen.position.copy(that.activeController.position);
-          that.pen.rotation.copy(that.activeController.rotation);
-        }
-        if (that.secondaryController && that.palette) {
-          that.palette.position.copy(that.secondaryController.position);
-          that.palette.rotation.copy(that.secondaryController.rotation);
+        if (that.primaryControllerGrip && that.pen) {
+          that.pen.position.copy(that.primaryControllerGrip.position);
+          that.pen.rotation.copy(that.primaryControllerGrip.rotation);
+          that.getIntersections(that.primaryController);
         }
         if (that.isDrawing) {
-          that.DrawUpdateModel(that.activeController.position.toArray());
+          that.DrawUpdateModel(that.primaryControllerGrip.position.toArray());
         } else {
           // any joystick movement to undo
           if (!XRInput.inputSources || XRInput.inputSources.length == 0) return;
@@ -323,6 +363,6 @@ class PenView extends Croquet.View {
   }
 }
 
-Croquet.Session.join("awegfaweg8", PenModel, PenView);
+Croquet.Session.join("awegfaweg10", PenModel, PenView);
 
 export { scene };
