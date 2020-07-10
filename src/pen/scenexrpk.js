@@ -26,7 +26,6 @@ import { MeshLine, MeshLineMaterial } from "threejs-meshline";
 import { Camera } from "../engine/engine";
 import Renderer from "../engine/renderer";
 import State from "../engine/state";
-import XRInput from "../engine/xrinput";
 const penPath = require("./assets/models/plutopen.glb");
 const penSFXPath = require("./assets/audio/pen.ogg");
 const clickSFXPath = require("./assets/audio/click.ogg");
@@ -96,7 +95,7 @@ class PenView extends Croquet.View {
     });
 
     State.eventHandler.addEventListener("xrsessionstarted", e => {
-      XRInput.inputSources = e.inputSources;
+      this.inputSources = e.inputSources;
       e.addEventListener("selectstart", this.TriggerStart.bind(this));
       e.addEventListener("selectend", this.TriggerEnd.bind(this));
     });
@@ -328,8 +327,9 @@ class PenView extends Croquet.View {
           that.DrawUpdateModel(that.primaryControllerGrip.position.toArray());
         } else {
           // any joystick movement to undo
-          if (!XRInput.inputSources || XRInput.inputSources.length == 0) return;
-          XRInput.inputSources.forEach(input => {
+
+          if (!that.inputSources || that.inputSources.length == 0) return;
+          that.inputSources.forEach(input => {
             input.gamepad.axes.forEach(axis => {
               if (that.undoBreak) return;
               if (axis != 0) {
