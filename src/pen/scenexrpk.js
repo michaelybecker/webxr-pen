@@ -2,7 +2,7 @@ import * as Croquet from "@croquet/croquet";
 import {
   AmbientLight,
   AudioLoader,
-  AxesHelper,
+  // AxesHelper,
   Mesh,
   PositionalAudio,
   MeshBasicMaterial,
@@ -31,7 +31,7 @@ const penSFXPath = require("./assets/audio/pen.ogg");
 const MAX_POINTS = 10000;
 
 const scene = new Scene();
-scene.add(new AxesHelper(5));
+// scene.add(new AxesHelper(5));
 scene.add(new AmbientLight(0xffffff, 4));
 
 class PenModel extends Croquet.Model {
@@ -259,9 +259,10 @@ class PenView extends Croquet.View {
       transparent: true,
       opacity: 0.65,
       side: DoubleSide,
-      // wireframe: true,
     });
     this.palette = new Mesh(pgeo, pmat);
+    this.palette.rotateOnAxis(new Vector3(1, 0, 0), Math.PI / -2);
+    this.palette.position.y += 0.125;
 
     this.palette.cc = new Mesh(
       new OctahedronBufferGeometry(0.015),
@@ -278,43 +279,35 @@ class PenView extends Croquet.View {
     };
     this.palette.cc.updateColor = color => {
       this.palette.cc.material.color = color;
-      this.line1.material.color = color;
+      this.raycastLine.material.color = color;
     };
     this.palette.cc.rotateOnAxis(new Vector3(1, 0, 0), Math.PI / 2);
-    // this.palette.cc.position.z += 0.025;
 
     this.palette.add(this.palette.cc);
     this.paletteCont = new Object3D();
-    this.palette.rotateOnAxis(new Vector3(1, 0, 0), Math.PI / -2);
     this.paletteCont.add(this.palette);
-    this.palette.position.y += 0.125;
-
     scene.add(this.paletteCont);
 
     this.raycaster = new Raycaster();
+    const that = this;
 
-    // var mouse = new Vector2();
-    var that = this;
-
-    var geometry = new BufferGeometry().setFromPoints([
+    const geometry = new BufferGeometry().setFromPoints([
       new Vector3(0, 0, 0),
-      new Vector3(0, -1, 0),
+      new Vector3(0, -0.1, 0),
     ]);
 
-    var line = new Line(
+    this.raycastLine = new Line(
       geometry,
       new LineBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 1 })
     );
-    line.name = "line";
-    line.scale.y = 0.1;
-    this.line1 = line.clone();
-    this.line1.Update = () => {
+    this.raycastLine.Update = () => {
+      this.raycastLine.quaternion.copy(this.paletteCont.quaternion);
       if (this.primaryControllerGrip) {
-        this.line1.position.copy(this.primaryControllerGrip.position);
-        this.line1.material.opacity = this.isPicking ? 1 : 0;
+        this.raycastLine.position.copy(this.primaryControllerGrip.position);
+        this.raycastLine.material.opacity = this.isPicking ? 1 : 0;
       }
     };
-    this.scene.add(this.line1);
+    this.scene.add(this.raycastLine);
     // this.line2 = line.clone();
     // this.primaryControllerGrip.add(this.line1);
     // this.secondaryControllerGrip.add(this.line2);
@@ -324,14 +317,12 @@ class PenView extends Croquet.View {
 
   getIntersections(controller) {
     var tempMatrix = new Matrix4();
-    tempMatrix.identity().extractRotation(controller.matrixWorld);
+    tempMatrix.identity().extractRotation(this.paletteCont.matrixWorld);
     this.raycaster.ray.origin = controller.position;
-
     this.raycaster.ray.direction.set(0, -1, 0).applyMatrix4(tempMatrix);
-
     this.raycaster.ray.far = 0.05;
 
-    var intersects = this.raycaster.intersectObject(this.paletteCont, true);
+    const intersects = this.raycaster.intersectObject(this.paletteCont, true);
     if (intersects[0] != undefined && intersects[0].face != undefined) {
       this.isPicking = true;
       this.palette.cc.updateColor(intersects[0].face.color);
