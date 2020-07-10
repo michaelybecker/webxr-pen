@@ -96,8 +96,9 @@ class PenView extends Croquet.View {
     });
 
     State.eventHandler.addEventListener("xrsessionstarted", e => {
-      e.addEventListener("selectstart", this.StartDrawing.bind(this));
-      e.addEventListener("selectend", this.StopDrawing.bind(this));
+      XRInput.inputSources = e.inputSources;
+      e.addEventListener("selectstart", this.TriggerStart.bind(this));
+      e.addEventListener("selectend", this.TriggerEnd.bind(this));
     });
 
     // input init
@@ -111,9 +112,27 @@ class PenView extends Croquet.View {
     scene.add(this.secondaryControllerGrip);
     this.CreatePen();
     this.CreateColorPalette();
+
+    //debug
+    // document.addEventListener("keydown", e => {
+    //   const data = { viewId: this.viewId, curColor: this.curColor };
+    //   this.publish("pen", "startdrawingmodel", data);
+    //   // this.StartDrawingTemp();
+    //   this.isDrawing = true;
+
+    //   const that2 = this;
+    //   setInterval(function () {
+    //     that2.DrawUpdateModel([
+    //       -1.5 + Math.random() * 3,
+    //       -1.5 + Math.random() * 3,
+    //       -1.5 + Math.random() * 3,
+    //     ]);
+    //   }, 500);
+    //   this.isDrawing = false;
+    // });
   }
 
-  StartDrawing(e) {
+  TriggerStart(e) {
     Renderer.xr.getSession().inputSources.forEach((inputSource, i) => {
       if (e.inputSource.handedness == inputSource.handedness) {
         this.primaryIndex = i;
@@ -184,25 +203,7 @@ class PenView extends Croquet.View {
     );
   }
 
-  StartDrawingTemp() {
-    //setup line mesh
-    this.tempPositions = new Float32Array(Q.MAX_POINTS * 3);
-
-    // increases every frame, iterating over this.positions for each stroke
-    this.tempCurrentPos = 0;
-
-    this.tempLine = new MeshLine();
-    this.tempLineMaterial = new MeshLineMaterial({
-      color: this.curColor,
-      lineWidth: 0.015,
-    });
-    this.tempLine.frustumCulled = false;
-    this.tempLine.setBufferArray(this.tempPositions);
-    this.tempCurStroke = new Mesh(this.tempLine, this.tempLineMaterial);
-    scene.add(this.tempCurStroke);
-  }
-
-  StopDrawing(e) {
+  TriggerEnd(e) {
     this.publish("pen", "stopdrawingmodel", this.viewId);
     this.isDrawing = false;
     // remove temporary local line
@@ -264,6 +265,23 @@ class PenView extends Croquet.View {
       this.undoBreak = false;
     }, 500);
   }
+  StartDrawingTemp() {
+    //setup line mesh
+    this.tempPositions = new Float32Array(Q.MAX_POINTS * 3);
+
+    // increases every frame, iterating over this.positions for each stroke
+    this.tempCurrentPos = 0;
+
+    this.tempLine = new MeshLine();
+    this.tempLineMaterial = new MeshLineMaterial({
+      color: this.curColor,
+      lineWidth: 0.015,
+    });
+    this.tempLine.frustumCulled = false;
+    this.tempLine.setBufferArray(this.tempPositions);
+    this.tempCurStroke = new Mesh(this.tempLine, this.tempLineMaterial);
+    scene.add(this.tempCurStroke);
+  }
 
   PlayFX(data) {
     const idS = data.viewId;
@@ -324,16 +342,13 @@ class PenView extends Croquet.View {
       that.pen.add(that.penMesh);
       scene.add(that.pen);
     });
+
     this.raycaster = new Raycaster();
-    // const that = this;
-
-    const geometry = new BufferGeometry().setFromPoints([
-      new Vector3(0, 0, 0),
-      new Vector3(0, -0.1, 0),
-    ]);
-
     this.raycastLine = new Line(
-      geometry,
+      new BufferGeometry().setFromPoints([
+        new Vector3(0, 0, 0),
+        new Vector3(0, -0.1, 0),
+      ]),
       new LineBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 1 })
     );
     this.raycastLine.Update = () => {
@@ -346,7 +361,6 @@ class PenView extends Croquet.View {
     scene.add(this.raycastLine);
   }
   CreateColorPalette() {
-    // const pgeo = new PlaneGeometry(0.2, 0.2, 64, 64);
     const pgeo = new CircleGeometry(0.075, 256);
     pgeo.faces.forEach((face, i) => {
       face.color.setHSL(i / pgeo.faces.length, 1, 0.5);
