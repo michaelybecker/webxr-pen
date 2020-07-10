@@ -19,7 +19,7 @@ import {
   Raycaster,
   Scene,
   Vector3,
-  AxesHelper,
+  // AxesHelper,
 } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { MeshLine, MeshLineMaterial } from "threejs-meshline";
@@ -28,16 +28,16 @@ import Renderer from "../engine/renderer";
 import State from "../engine/state";
 import XRInput from "../engine/xrinput";
 const penPath = require("./assets/models/plutopen.glb");
-const brushTexturePath = require("./assets/images/brush.png");
 const penSFXPath = require("./assets/audio/pen.ogg");
 const clickSFXPath = require("./assets/audio/click.ogg");
+// const brushTexturePath = require("./assets/images/brush.png");
 
 const Q = Croquet.Constants;
 Q.MAX_POINTS = 10000;
 
 const scene = new Scene();
 scene.add(new AmbientLight(0xffffff, 4));
-scene.add(new AxesHelper(3));
+// scene.add(new AxesHelper(3));
 
 class PenModel extends Croquet.Model {
   static types() {
@@ -76,24 +76,18 @@ class PenView extends Croquet.View {
     this.subscribe("pen", "drawupdateview", this.DrawUpdateView);
     this.subscribe("pen", "undoview", this.UndoView);
 
-    this.scene = scene;
     this.isDrawing = false;
     this.undoBreak = false;
     this.strokeHistory = {};
     this.curColor = new Color(0xff0000);
     this.penSFXDict = {};
-    this.currentLines = {};
     this.currentStrokes = {};
-    this.currentStrokesBuffers = {};
-    this.currentStrokesPositions = {};
 
     // audio init
     const al = new AudioLoader();
     al.load(penSFXPath, buffer => {
       this.penSFXBuffer = buffer;
     });
-
-    const al2 = new AudioLoader();
     al.load(clickSFXPath, buffer => {
       this.clickSFXBuffer = buffer;
       this.clickSFXAudio = new PositionalAudio(Camera.audioListener);
@@ -113,21 +107,20 @@ class PenView extends Croquet.View {
     this.primaryController = Renderer.xr.getController(1);
     this.secondaryControllerGrip = Renderer.xr.getControllerGrip(0);
     this.secondaryController = Renderer.xr.getController(0);
-    this.scene.add(this.primaryControllerGrip);
-    this.scene.add(this.secondaryControllerGrip);
-
+    scene.add(this.primaryControllerGrip);
+    scene.add(this.secondaryControllerGrip);
     this.CreatePen();
     this.CreateColorPalette();
   }
 
   StartDrawing(e) {
-    if (e.inputSource.handedness == "left") {
-      this.primaryIndex = 0;
-      this.secondaryIndex = 1;
-    } else {
-      this.primaryIndex = 1;
-      this.secondaryIndex = 0;
-    }
+    Renderer.xr.getSession().inputSources.forEach((inputSource, i) => {
+      if (e.inputSource.handedness == inputSource.handedness) {
+        this.primaryIndex = i;
+        this.secondaryIndex = this.primaryIndex == 1 ? 0 : 1;
+      }
+    });
+
     this.primaryControllerGrip = Renderer.xr.getControllerGrip(
       this.primaryIndex
     );
@@ -152,15 +145,18 @@ class PenView extends Croquet.View {
   }
 
   StartDrawingView(data) {
+    if (this.currentStrokes[data.viewId] == undefined) {
+      this.currentStrokes[data.viewId] = {};
+    }
     //setup line mesh
-    this.currentStrokesBuffers[data.viewId] = new Float32Array(
+    this.currentStrokes[data.viewId]["currentStrokesBuffer"] = new Float32Array(
       Q.MAX_POINTS * 3
     );
 
     // increases every frame, iterating over the buffer for each user for each stroke
-    this.currentStrokesPositions[data.viewId] = 0;
+    this.currentStrokes[data.viewId]["currentStrokesPosition"] = 0;
 
-    this.currentLines[data.viewId] = new MeshLine();
+    this.currentStrokes[data.viewId]["currentLine"] = new MeshLine();
     // this.tL = new TextureLoader();
     this.lineMaterial = new MeshLineMaterial({
       color: data.curColor,
@@ -171,19 +167,21 @@ class PenView extends Croquet.View {
       // transparent: true,
       // alphaTest: 0.1,
     });
-    this.currentLines[data.viewId].frustumCulled = false;
-    this.currentLines[data.viewId].setBufferArray(
-      this.currentStrokesBuffers[data.viewId]
+    this.currentStrokes[data.viewId]["currentLine"].frustumCulled = false;
+    this.currentStrokes[data.viewId]["currentLine"].setBufferArray(
+      this.currentStrokes[data.viewId]["currentStrokesBuffer"]
     );
-    this.currentStrokes[data.viewId] = new Mesh(
-      this.currentLines[data.viewId],
+    this.currentStrokes[data.viewId]["currentMesh"] = new Mesh(
+      this.currentStrokes[data.viewId]["currentLine"],
       this.lineMaterial
     );
-    scene.add(this.currentStrokes[data.viewId]);
+    scene.add(this.currentStrokes[data.viewId]["currentMesh"]);
     if (this.strokeHistory[data.viewId] == undefined) {
       this.strokeHistory[data.viewId] = [];
     }
-    this.strokeHistory[data.viewId].push(this.currentStrokes[data.viewId]);
+    this.strokeHistory[data.viewId].push(
+      this.currentStrokes[data.viewId]["currentMesh"]
+    );
   }
 
   StartDrawingTemp() {
@@ -232,18 +230,21 @@ class PenView extends Croquet.View {
   DrawUpdateView(data) {
     // due to setDrawRange perf issues, set *all* remaining points to latest cont position instead
     for (
-      let i = this.currentStrokesPositions[data.viewId];
+      let i = this.currentStrokes[data.viewId]["currentStrokesPosition"];
       i < Q.MAX_POINTS * 3;
       i++
     ) {
-      this.currentStrokesBuffers[data.viewId][i * 3] = data.position[0];
-      this.currentStrokesBuffers[data.viewId][i * 3 + 1] = data.position[1];
-      this.currentStrokesBuffers[data.viewId][i * 3 + 2] = data.position[2];
+      this.currentStrokes[data.viewId]["currentStrokesBuffer"][i * 3] =
+        data.position[0];
+      this.currentStrokes[data.viewId]["currentStrokesBuffer"][i * 3 + 1] =
+        data.position[1];
+      this.currentStrokes[data.viewId]["currentStrokesBuffer"][i * 3 + 2] =
+        data.position[2];
     }
-    this.currentStrokesPositions[data.viewId]++;
+    this.currentStrokes[data.viewId]["currentStrokesPosition"]++;
 
-    this.currentLines[data.viewId].setBufferArray(
-      this.currentStrokesBuffers[data.viewId]
+    this.currentStrokes[data.viewId]["currentLine"].setBufferArray(
+      this.currentStrokes[data.viewId]["currentStrokesBuffer"]
     );
     this.PlayFX(data);
   }
