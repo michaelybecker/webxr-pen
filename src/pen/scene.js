@@ -9,7 +9,6 @@ import {
   FaceColors,
   Line,
   LineBasicMaterial,
-  TextureLoader,
   Matrix4,
   Mesh,
   MeshBasicMaterial,
@@ -19,26 +18,21 @@ import {
   Raycaster,
   Scene,
   Vector3,
-  // AxesHelper,
 } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { MeshLine, MeshLineMaterial } from "threejs-meshline";
 import { Camera } from "../engine/engine";
 import Renderer from "../engine/renderer";
 import XRInput from "../engine/xrinput";
-import State from "../engine/state";
 const penPath = require("./assets/models/plutopen.glb");
 const penSFXPath = require("./assets/audio/pen.ogg");
 const clickSFXPath = require("./assets/audio/click.ogg");
-const ContArr = [Renderer.xr.getController(0), Renderer.xr.getController(1)];
-// const brushTexturePath = require("./assets/images/brush.png");
 
 const Q = Croquet.Constants;
 Q.MAX_POINTS = 10000;
 
 const scene = new Scene();
 scene.add(new AmbientLight(0xffffff, 4));
-// scene.add(new AxesHelper(3));
 
 class PenModel extends Croquet.Model {
   static types() {
@@ -98,12 +92,6 @@ class PenView extends Croquet.View {
       this.paletteCont.add(this.clickSFXAudio);
     });
 
-    State.eventHandler.addEventListener("xrsessionstarted", e => {
-      // won't work on XRPKs:
-      // e.addEventListener("selectstart", this.TriggerStart.bind(this));
-      // e.addEventListener("selectend", this.TriggerEnd.bind(this));
-    });
-
     //xrpk alternative using gamepad:
 
     const InputHandler = new Object3D();
@@ -115,9 +103,6 @@ class PenView extends Croquet.View {
           if (button.pressed == true && this.isDrawing == false) {
             this.pressedButton = button;
             this.TriggerStart(e);
-            // this.inputDebugString +=
-            //   e.handedness + " controller button " + i + "\n";
-            // this.inputDebugString += "value: " + button.value + "\n";
           } else {
             this.TriggerEnd(e);
           }
@@ -159,7 +144,6 @@ class PenView extends Croquet.View {
 
       if (!this.isPicking) {
         // painting
-        // console.log("StartDrawing");
         const data = { viewId: this.viewId, curColor: this.curColor };
         this.publish("pen", "startdrawingmodel", data);
         this.isDrawing = true;
@@ -186,15 +170,9 @@ class PenView extends Croquet.View {
     this.currentStrokes[data.viewId]["currentStrokesPosition"] = 0;
 
     this.currentStrokes[data.viewId]["currentLine"] = new MeshLine();
-    // this.tL = new TextureLoader();
     this.lineMaterial = new MeshLineMaterial({
       color: data.curColor,
       lineWidth: 0.015,
-      // useAlphaMap: true,
-      // alphaMap: this.tL.load(brushTexturePath),
-      // depthTest: false,
-      // transparent: true,
-      // alphaTest: 0.1,
     });
     this.currentStrokes[data.viewId]["currentLine"].frustumCulled = false;
     this.currentStrokes[data.viewId]["currentLine"].setBufferArray(
@@ -347,7 +325,6 @@ class PenView extends Croquet.View {
           that.DrawUpdateModel(that.primaryController.position.toArray());
         } else {
           // any joystick movement to undo
-
           if (
             !XRInput.inputSources ||
             XRInput.inputSources.length == 0 ||
