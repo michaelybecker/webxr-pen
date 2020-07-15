@@ -8,10 +8,12 @@ const common = require("./webpack.common");
 
 module.exports = merge(common, {
   mode: "production",
+  devtool: "eval-cheap-source-map",
   performance: {
     hints: false,
   },
   optimization: {
+    concatenateModules: false,
     minimize: true,
     splitChunks: {
       chunks: "all",

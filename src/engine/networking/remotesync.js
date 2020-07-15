@@ -226,7 +226,6 @@ class RemoteSync {
       );
       return;
     }
-
     if (info === undefined) info = {};
 
     this.localObjectTable[object.uuid] = object;
@@ -284,8 +283,13 @@ class RemoteSync {
   removeLocalObject(object) {
     if (this.localObjectTable[object.uuid] === undefined) {
       console.warn("RemoteSync.removeLocalObject: object not found");
+      console.log(object.uuid);
+      console.log(this.localObjectTable);
       return;
     }
+
+    console.log("continuing");
+    console.log(this.localObjectTable[object.uuid]);
 
     var info = this.localObjectInfos[object.uuid];
 
@@ -833,7 +837,7 @@ class RemoteSync {
    */
   checkUpdate(object) {
     var component = this.transferComponents[object.uuid];
-
+    if (component == undefined) return;
     var array = component.matrix;
     var array2 = object.matrix.elements;
 

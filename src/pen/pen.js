@@ -61,9 +61,7 @@ export default class Pen extends Object3D {
     gltfLoader.load(penPath, function (gltf) {
       penRef.penModel = gltf.scene;
       console.log(penRef.penModel);
-      penRef.penModel.Update = () => {
-        console.log("bimmey");
-      };
+      penRef.penModel.Update = () => {};
       // penRef.penModel.scale.set(0.025, 0.025, 0.025);
       penRef.add(penRef.penModel);
     });
