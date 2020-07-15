@@ -6,6 +6,7 @@
 
 import State from "../../state";
 import Renderer from "../../renderer";
+import XRInput from "../../xrinput";
 
 class SessionHandler {
   constructor() {

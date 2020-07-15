@@ -1,9 +1,9 @@
 // scene to run:
-import { scene } from "../pen/scenexrpk";
+import { scene } from "../pen/scene";
 
 import State from "./state";
 import { PerspectiveCamera, AudioListener } from "three";
-import EngineEditorCamera from "./util/Cameracontrols/engineeditorcamera";
+import EngineEditorCamera from "./util/cameracontrols/engineeditorcamera";
 import SessionHandler from "./util/webxr/sessionhandler";
 import Renderer from "./renderer";
 import Physics from "./physics/physics";
